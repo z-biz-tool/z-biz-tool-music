@@ -1,23 +1,23 @@
 {
   "version": "0.1.0",
   "notes": "See the assets below to download this version.",
-  "pub_date": "2026-10-28T14:56:46Z",
+  "pub_date": "2026-10-28T15:15:59Z",
   "platforms": {
     "darwin-aarch64": {
-      "url": "https://github.com/z-biz-tool/z-biz-tool-music/releases/download/v0.1.0/z-biz-tool-music.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK1VCMzRSUzRoRUJkL0Q0bGdQLzFrRkcyeVhIYUNaQmNEclBySHppRXBtb0E4RE1KNFh1Sy9TNjJ4QzF3Q215TEV5a1kxZndHN3hpNnNIblpVczkvcXdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk4OTg1CWZpbGU6ei1iaXotdG9vbC1tdXNpYy5hcHAudGFyLmd6CXZlcnNpb246MC4xLjAKT3o2TzlJWkhURTF0ZlNyQ0JRUjJnZVRmODdoTU82L3AwMSsxa092K0R6MGRLcksydURqQTVma08yYzJidjlyRzJ6dmVuQXhNclRiUy83bmNOb2QzRFE9PQo="
+      "url": "https://github.com/z-biz-tool/z-biz-tool-music/releases/download/v0.1.0/z-biz-tool-music_aarch64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK1d3N0tBV0VzSXMvVjU0UzA2dGRpRzRzUlJNQmNsakNLY1R3TWRGRmQvaFpCekx4b3lrdmRMOGtmbjU4SkhGQkVtaE9KUC9PYldlZSs0YmVzT0FML0FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk5ODc2CWZpbGU6ei1iaXotdG9vbC1tdXNpYy5hcHAudGFyLmd6CXZlcnNpb246MC4xLjAKR2ZSWFIzdEZaYi9Ob3UrY2VhUnNBYjdTSVFGZDV5VlVFTXZRUkZ6YnNaMHJoVFRGZFdaQmI2ejN6a0dSbi8wZkVVOFJnbTdkNWcvbFpRcmlyQW0wRHc9PQo="
     },
     "darwin-x86_64": {
-      "url": "https://github.com/z-biz-tool/z-biz-tool-music/releases/download/v0.1.0/z-biz-tool-music.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK1Fua2ZSZUsvcEsrWHJqeC96MEZuVndqTURRdW9xSUdBd1ZjUmZObDFMZlQyckRjaVpjZU92OUFCUEdxSlRqajcxemx3UGNWMUN5NU5iWGx1M0dKakFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk5MzY0CWZpbGU6ei1iaXotdG9vbC1tdXNpYy5hcHAudGFyLmd6CXZlcnNpb246MC4xLjAKdElnelF3YzBSZDlPZGhxeW1SNW90dVVUSlFPdjgxakJvRGJoZXNIdnZpRnFsNjBRVUZPUUZhRmhnRnBqQVJrMWlneEFoVnNIRWdGcTFUWkdIWjF5Qmc9PQo="
+      "url": "https://github.com/z-biz-tool/z-biz-tool-music/releases/download/v0.1.0/z-biz-tool-music_x64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK2JGcWxaUmU4V3V3d1J4LytyUDY5SDlSVEZNNWtwT1R1aWljK3N3eWJzMVNKLzYvSGlOaEN0U3RzMGlTUVFwa0JCbW1PbGp1WnhVNDh4M05pTEN2WlFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMjAwNTI1CWZpbGU6ei1iaXotdG9vbC1tdXNpYy5hcHAudGFyLmd6CXZlcnNpb246MC4xLjAKSkRoczdpMGgwdG5HbW1oQUIxSkEzMTBFQllvMkU4MlhobnBNQVY3TmpvYzgrNWFHbDRsQ3UxNWdKZjFOVVhXYUljQThYWEwvQ2s1OUo0SzFxUVVsRFE9PQo="
     },
     "linux-x86_64": {
       "url": "https://github.com/z-biz-tool/z-biz-tool-music/releases/download/v0.1.0/z-biz-tool-music_0.1.0_amd64.AppImage",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK2VQVUtkOHAydHdTV0M1Z3BtcU1IRkR2eUs5Y0lCbEQ5UDVzVFdWMXRZQUswQmZWZkNpODB1VFBHbDdvc0cwZzRON3Z2K2xySEZyUWwzVHZzdjZ6bUFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk5MTAyCWZpbGU6ei1iaXotdG9vbC1tdXNpY18wLjEuMF9hbWQ2NC5BcHBJbWFnZQl2ZXJzaW9uOjAuMS4wCkRYOGdhTExxRTNBZ3R3R2FaR0h5ZTYyNGdjTVFLT2kzVXVvYjBSd01Ld0xBK05JUkw1LzFsT2xkeXh6UHpJT2RLcXpwM3dDZ0l0Z0NxZDVIYk1PTURBPT0K"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK2V2TUF1dkVCY3JqaW50RW5wNUtmSkhsTExZWHhkS2hDUHlPUzRLNUJyUytVMHhNY3M5anNkQ0JYMFRxcTBwZU96b2JYaDh0WHVOOGtOL2NOZGtCQkFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk5ODcxCWZpbGU6ei1iaXotdG9vbC1tdXNpY18wLjEuMF9hbWQ2NC5BcHBJbWFnZQl2ZXJzaW9uOjAuMS4wCjQwcFUyemd5bHlycjZML0xleUpMUlE4d21tQ3lYWWRhRTNxbnlSSVMvNnJHM1dTNXdaZEdKWVlmcHM4NXJwRE9jT1ZDRDZ3bjNqYmpRdElGcEtlOENBPT0K"
     },
     "windows-x86_64": {
       "url": "https://github.com/z-biz-tool/z-biz-tool-music/releases/download/v0.1.0/z-biz-tool-music_0.1.0_x64_en-US.msi",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK1V1bXlZNlFWZTZVV0FqdWMxRnNQOXljOTUrenRsakpaaEdoMXY2RG5IeUovdGhvbVV6a0dMVUxFOUNTU0U0YkRLYVhDUUY3OGhsUEtwK1pLZ3N1UndZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk5MDIwCWZpbGU6ei1iaXotdG9vbC1tdXNpY18wLjEuMF94NjRfZW4tVVMubXNpCXZlcnNpb246MC4xLjAKTWZqcHE0a240cmxhVi80NnViZkpQT0hFbDRyY2oyWisrenM0bjAyQW1ESzcwd1YyUXJLRzl1L284VjNqM2RjaklQSmtCcmR6WHlra2xBTnFRcThxQkE9PQo="
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK2R1ZUhnOCt6cmM3Q1J2elhETVJxdTJVeE1iZlpvTXIvSCtwNUwyZEFZcThOYzRycTZ4eDB1MHRKTU5Ed2xESGUzakMvZ3BsUzc3YlNnblRLY0VZNndvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMjAwMjAwCWZpbGU6ei1iaXotdG9vbC1tdXNpY18wLjEuMF94NjRfZW4tVVMubXNpCXZlcnNpb246MC4xLjAKUGZ5OXgzTyt0NlNRZ25YeitwNXVxVzR5VkZob3hWdk5TN05YSDN1WW4wTlQwTzJXaHlDQ2hKd2ZkbGFNN0FFeDI2WHk0cGVnL3ZjY1dpS0lneFhPQWc9PQo="
     }
   }
 }
