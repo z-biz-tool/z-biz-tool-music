@@ -118,12 +118,15 @@ jobs:
       # 本平台的 latest.json 条目（url 指向 release 资产，signature 是 .sig 文件内容）。
       # v2 模式（createUpdaterArtifacts: true）的更新包：macOS=*.app.tar.gz、
       # Windows=*.msi、Linux=*.AppImage，各自旁边应有同名 .sig。
+      # ⚠️ 目录名不带点：actions/upload-artifact@v4 **默认不上传隐藏文件/目录**，
+      # 早期写成 .updater-fragments 时四平台都报 "No files were found"，
+      # 于是 latest.json 永远推不出去、更新通道静默失效（v0.1.0 首次发布实测踩到）。
       - name: Generate updater manifest fragment
         if: steps.signing.outputs.mode == 'signed'
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .updater-fragments
+          mkdir -p updater-fragments
           case "${{ matrix.label }}" in
             macOS-ARM)
               PLATFORM="darwin-aarch64"
@@ -162,7 +165,7 @@ jobs:
             const fs = require("fs");
             const [platform, url, sigPath] = process.argv.slice(1);
             const fragment = { [platform]: { url, signature: fs.readFileSync(sigPath, "utf8").trim() } };
-            fs.writeFileSync(`.updater-fragments/${platform}.json`, JSON.stringify(fragment, null, 2) + "\n");
+            fs.writeFileSync(`updater-fragments/${platform}.json`, JSON.stringify(fragment, null, 2) + "\n");
           ' "$PLATFORM" "$URL" "$SIG"
 
       - name: Upload updater manifest fragment
@@ -170,7 +173,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: updater-frag-${{ matrix.label }}
-          path: .updater-fragments/*.json
+          path: updater-fragments/*.json
           if-no-files-found: error
 
   # 把 4 个平台的片段合并成一个 latest.json 推到 main（固定分支）。
@@ -195,7 +198,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: updater-frag-*
-          path: .updater-fragments
+          path: updater-fragments
           merge-multiple: true
 
       - name: Compose latest.json and push to main
@@ -217,7 +220,7 @@ jobs:
           node -e '
             const fs = require("fs");
             const [version, notes] = process.argv.slice(1);
-            const dir = ".updater-fragments";
+            const dir = "updater-fragments";
             const platforms = {};
             for (const f of fs.readdirSync(dir).filter((f) => f.endsWith(".json"))) {
               Object.assign(platforms, JSON.parse(fs.readFileSync(`${dir}/${f}`, "utf8")));
