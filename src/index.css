@@ -406,3 +406,444 @@ body {
     width: 150px;
   }
 }
+
+/* ================================================================ 课程视图 */
+
+/*
+ * 课程是「学」的状态，不是「编」的状态：它要全宽、要能长时间读、
+ * 要能把音符和琴键放在同一个视线范围内。所以不复用左右栏布局。
+ */
+
+.mu-lesson {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.mu-lesson-nav {
+  width: 224px;
+  flex: 0 0 auto;
+  border-right: 1px solid var(--mu-line);
+  background: var(--mu-panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mu-lesson-stat {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--mu-line);
+}
+
+.mu-lesson-stat-num {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  background: var(--mu-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.mu-lesson-stat-num small {
+  font-size: 12px;
+  color: var(--mu-muted);
+  -webkit-text-fill-color: var(--mu-muted);
+}
+
+.mu-lesson-chapters {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 6px 18px;
+}
+
+.mu-lesson-chapter-title {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--mu-muted);
+  padding: 10px 8px 4px;
+}
+
+.mu-lesson-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--mu-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--mu-motion), color var(--mu-motion);
+}
+
+.mu-lesson-item:hover {
+  background: var(--mu-hover);
+}
+
+.mu-lesson-item[data-active="true"] {
+  background: var(--mu-hover);
+  box-shadow: inset 2px 0 0 var(--mu-accent);
+  color: var(--mu-text);
+  font-weight: 600;
+}
+
+.mu-lesson-item[data-done="true"]:not([data-active="true"]) {
+  color: var(--mu-muted);
+}
+
+.mu-lesson-tick {
+  display: inline-flex;
+  width: 13px;
+  flex: 0 0 13px;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.mu-lesson-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mu-lesson-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 20px 18px;
+}
+
+.mu-lesson-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mu-lesson-title {
+  margin: 2px 0 4px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.mu-lesson-goal {
+  font-size: 12.5px;
+  color: var(--mu-muted);
+  line-height: 1.7;
+  max-width: 78ch;
+}
+
+.mu-lesson-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.mu-lesson-card {
+  border: 1px solid var(--mu-line);
+  border-radius: 10px;
+  background: var(--mu-panel);
+  padding: 14px 16px;
+}
+
+.mu-lesson-block + .mu-lesson-block {
+  margin-top: 12px;
+}
+
+.mu-lesson-block h3 {
+  margin: 0 0 5px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--mu-text);
+}
+
+.mu-lesson-block p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--mu-text);
+  max-width: 82ch;
+}
+
+.mu-lesson-tip {
+  margin-top: 7px !important;
+  padding: 7px 10px;
+  border-left: 2px solid var(--mu-accent-2);
+  background: rgba(52, 232, 210, 0.07);
+  border-radius: 0 6px 6px 0;
+  color: var(--mu-muted) !important;
+  font-size: 12.5px !important;
+}
+
+.mu-lesson-practice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.mu-lesson-practice-head h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.mu-lesson-sheet {
+  margin-bottom: 10px;
+}
+
+/* 课程里的谱子比工作台矮一档：一屏里要同时看到谱、琴键、按钮 */
+.mu-lesson-sheet .mu-paper {
+  padding: 10px 12px;
+}
+
+.mu-lesson-kbdbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.mu-lesson-focus {
+  font-size: 12.5px;
+  color: var(--mu-accent-2);
+}
+
+.mu-lesson-judge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--mu-muted);
+}
+
+/* -------------------------------------------------------------- 屏幕琴键 */
+
+.mu-kbd {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.5));
+  padding: 6px 6px 0;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.mu-kbd-key {
+  position: absolute;
+  top: 6px;
+  bottom: 0;
+  border: none;
+  padding: 0 2px 4px;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1px;
+  border-radius: 0 0 6px 6px;
+  transition:
+    transform 0.06s ease-out,
+    background 0.12s ease-out,
+    box-shadow 0.12s ease-out;
+  background: linear-gradient(180deg, #ffffff 0%, #eef0f8 78%, #dcdfee 100%);
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(0, 0, 0, 0.06);
+  color: #7a80a0;
+  font-size: 9.5px;
+}
+
+.mu-kbd-key[data-black="true"] {
+  bottom: auto;
+  height: 62%;
+  z-index: 2;
+  border-radius: 0 0 5px 5px;
+  background: linear-gradient(180deg, #3a4060 0%, #1a1d2e 70%, #0d0f19 100%);
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, 0.5),
+    0 3px 6px rgba(0, 0, 0, 0.5);
+  color: #b9c0dd;
+  justify-content: flex-end;
+  font-size: 8.5px;
+}
+
+.mu-kbd-key[data-state="target"] {
+  background: linear-gradient(180deg, #d8fff9 0%, #a9f5ea 75%, #7fe8db 100%);
+  box-shadow:
+    0 0 0 2px var(--mu-accent-2),
+    0 0 14px rgba(52, 232, 210, 0.65);
+  color: #0a4a44;
+  font-weight: 700;
+  animation: mu-kbd-pulse 1.15s ease-in-out infinite;
+}
+
+.mu-kbd-key[data-black="true"][data-state="target"] {
+  background: linear-gradient(180deg, #2fb8a6 0%, #14796e 100%);
+  color: #eafffb;
+}
+
+.mu-kbd-key[data-state="hit"] {
+  background: linear-gradient(180deg, #98f0a8 0%, #52c41a 100%) !important;
+  box-shadow: 0 0 16px rgba(82, 196, 26, 0.7) !important;
+  color: #0a2a06 !important;
+  transform: translateY(1px);
+}
+
+.mu-kbd-key[data-state="wrong"] {
+  background: linear-gradient(180deg, #ffb3b3 0%, #ff4d4f 100%) !important;
+  box-shadow: 0 0 16px rgba(255, 77, 79, 0.75) !important;
+  color: #360505 !important;
+  animation: mu-kbd-shake 0.24s ease-in-out 2;
+}
+
+.mu-kbd-sol {
+  line-height: 1;
+}
+
+.mu-kbd-name {
+  line-height: 1;
+  opacity: 0.72;
+  font-size: 8.5px;
+  letter-spacing: -0.02em;
+}
+
+@keyframes mu-kbd-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px var(--mu-accent-2),
+      0 0 10px rgba(52, 232, 210, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px var(--mu-accent-2),
+      0 0 20px rgba(52, 232, 210, 0.85);
+  }
+}
+
+@keyframes mu-kbd-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  33% {
+    transform: translateX(-2px);
+  }
+  66% {
+    transform: translateX(2px);
+  }
+}
+
+/* 系统开了「减少动态效果」就别抖 */
+@media (prefers-reduced-motion: reduce) {
+  .mu-kbd-key[data-state="target"],
+  .mu-kbd-key[data-state="wrong"] {
+    animation: none;
+  }
+}
+
+.mu-lesson-keys-hint {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--mu-muted);
+}
+
+.mu-lesson-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.mu-lesson-expected {
+  font-size: 12.5px;
+  color: var(--mu-text);
+}
+
+.mu-lesson-expected b {
+  color: var(--mu-accent-2);
+  font-size: 13.5px;
+  letter-spacing: 0.02em;
+}
+
+.mu-lesson-result {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  background: rgba(255, 107, 107, 0.08);
+}
+
+.mu-lesson-result[data-pass="true"] {
+  border-color: rgba(82, 196, 26, 0.4);
+  background: rgba(82, 196, 26, 0.1);
+}
+
+.mu-lesson-result-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.mu-lesson-takeaway {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--mu-hover);
+  font-size: 12.5px;
+  color: var(--mu-text);
+  line-height: 1.7;
+}
+
+.mu-lesson-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mu-transport[data-disabled="true"] {
+  justify-content: center;
+}
+
+/* 窄窗口：目录让位，先保证谱和琴键看得清 */
+@media (max-width: 1180px) {
+  .mu-lesson-nav {
+    width: 180px;
+  }
+}
+
+@media (max-width: 900px) {
+  .mu-lesson-nav {
+    display: none;
+  }
+
+  .mu-lesson-main {
+    padding: 10px 12px 14px;
+  }
+}

@@ -44,12 +44,14 @@ import {
   RobotOutlined,
   ReadOutlined,
   InfoCircleOutlined,
+  BookOutlined,
 } from "@ant-design/icons";
 import { toAbc } from "./core/abc.ts";
-import { beatsPerMeasure, measureCount, scoreEnd, serializeScore, type InstrumentId } from "./core/model.ts";
+import { beatsPerMeasure, measureCount, scoreEnd, serializeScore, type InstrumentId, type Score } from "./core/model.ts";
 import { useStore, type ViewMode } from "./state.ts";
 import { JianpuView, MixerView, PianoRoll, StaffView, TrackList } from "./ui/views.tsx";
 import { AiPanel, InspectorPanel, TheoryPanel } from "./ui/panels.tsx";
+import LessonView from "./ui/LessonView.tsx";
 import Transport from "./ui/Transport.tsx";
 import {
   EXPORT_META,
@@ -67,6 +69,7 @@ const VIEWS: { value: ViewMode; label: string; icon: React.ReactNode }[] = [
   { value: "jianpu", label: "简谱", icon: <NumberOutlined /> },
   { value: "roll", label: "卷帘", icon: <BarsOutlined /> },
   { value: "mixer", label: "混音", icon: <SlidersOutlined /> },
+  { value: "lesson", label: "课程", icon: <BookOutlined /> },
 ];
 
 /** 结构指纹：只有它变了才重建音色节点；音量/声像变化不算 */
@@ -202,6 +205,23 @@ export default function App() {
     [],
   );
 
+  /**
+   * 课程里点「在工程里打开」：把练习曲交给主工程，切到五线谱。
+   *
+   * sigRef 必须清空 —— 否则回到主视图点播放时，structureSig 与缓存一致，
+   * 引擎不会重载，结果播的还是课程那首谱。这个坑在课程里播过示范之后
+   * 一定会踩到，所以在这里和 LessonView 卸载时都要清。
+   */
+  const openInProject = useCallback((s: Score) => {
+    useStore.getState().loadScore(s, `已载入课程练习「${s.title}」`, s.title);
+    sigRef.current = "";
+    useStore.getState().setView("staff");
+  }, []);
+
+  const invalidateEngine = useCallback(() => {
+    sigRef.current = "";
+  }, []);
+
   const doExport = useCallback(
     async (kind: ExportKind) => {
       setBusyExport(kind);
@@ -294,6 +314,8 @@ export default function App() {
         return;
       }
       if (typing) return;
+      // 课程视图下不劫持普通键：A-K 是琴键、空格留给练习卡自己的按钮
+      if (useStore.getState().view === "lesson") return;
       if (e.code === "Space") {
         e.preventDefault();
         void playPause();
@@ -344,6 +366,7 @@ export default function App() {
   );
 
   const stage = (() => {
+    if (view === "lesson") return null;
     if (view === "staff") return <StaffView score={score} beat={beat} />;
     if (view === "jianpu") return <JianpuView score={score} trackIndex={trackIndex} beat={beat} />;
     if (view === "roll")
@@ -455,6 +478,12 @@ export default function App() {
             </Tooltip>
           </header>
 
+          {view === "lesson" ? (
+            /* 课程视图要全宽：它是另一种工作状态（学），不是"编曲时顺便看看课" */
+            <div className="mu-body mu-body-lesson">
+              <LessonView getEngine={ensureEngine} invalidateEngine={invalidateEngine} onOpenInProject={openInProject} />
+            </div>
+          ) : (
           <div className="mu-body">
             <aside className="mu-left">
               <TrackList
@@ -492,6 +521,7 @@ export default function App() {
               />
             </aside>
           </div>
+          )}
 
           <Transport
             score={score}
@@ -508,6 +538,8 @@ export default function App() {
               const total = Math.max(beatsPerMeasure(score), scoreEnd(score));
               store.setSettings({ loop: on ? { from: 0, to: total } : null });
             }}
+            disabled={view === "lesson"}
+            disabledHint="课程视图：用练习卡上的「听示范」和琴键弹奏，走带条管的是主工程"
           />
 
           {hint && (

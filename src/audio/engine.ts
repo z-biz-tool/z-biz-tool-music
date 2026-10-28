@@ -127,6 +127,13 @@ export class PlaybackEngine {
   private metronomeOn = false;
   private loop: { from: number; to: number } | null = null;
   private ticker: number | null = null;
+  /**
+   * 课程用的「教具琴」：一个常驻的钢琴音色，按一下就响。
+   *
+   * 为什么不用 load() 里那套按轨建的节点：课程练习时学生自己决定什么时候弹，
+   * 不经过 Transport 的时钟，而且换课时不该重建音色（会有明显延迟）。
+   */
+  private tutor: Tone.PolySynth<Tone.Synth> | null = null;
   /** 走带状态回调（播放头位置等），由 UI 订阅 */
   onTick: ((state: TransportState) => void) | null = null;
 
@@ -307,6 +314,25 @@ export class PlaybackEngine {
     transport.loopEnd = to * this.secPerBeat();
   }
 
+  /**
+   * 按一下琴键就响（课程/练习用），不经过 Transport。
+   *
+   * 走 triggerAttackRelease 的 time 参数留空 = 立即触发，学生按下去听到的就是
+   * 按下去的那一刻 —— 学琴时这点即时性很重要，晚 30ms 就会觉得"琴不跟手"。
+   */
+  async pluck(pitch: number, durSec = 0.9, vel = 0.7): Promise<void> {
+    if (pitch < 0) return;
+    await Tone.start();
+    if (!this.tutor) {
+      this.tutor = new Tone.PolySynth(Tone.Synth, {
+        oscillator: PRESETS.piano.oscillator as Tone.SynthOptions["oscillator"],
+        envelope: PRESETS.piano.envelope,
+        volume: -4,
+      }).toDestination();
+    }
+    this.tutor.triggerAttackRelease(midiToFreq(pitch), Math.max(0.08, durSec), undefined, Math.max(0.05, Math.min(1, vel)));
+  }
+
   private startTicker(): void {
     if (this.ticker !== null) return;
     this.ticker = window.setInterval(() => this.emit(), 60);
@@ -326,6 +352,8 @@ export class PlaybackEngine {
       n.channel.dispose();
     }
     this.nodes.clear();
+    this.tutor?.dispose();
+    this.tutor = null;
   }
 }
 

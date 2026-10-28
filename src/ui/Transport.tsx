@@ -26,6 +26,15 @@ export interface TransportProps {
   onTempo: (bpm: number) => void;
   onMetronome: (on: boolean) => void;
   onLoop: (on: boolean) => void;
+  /**
+   * 课程视图下禁用。
+   *
+   * 理由：课程练习曲是临时载入引擎的，走带条操作的却是主工程的 score。
+   * 让它可点会制造两种「播放」并存，学生一点就播错谱、改速度改的也是主工程。
+   * 与其做一个只在某些视图有效的控件，不如明确禁掉。
+   */
+  disabled?: boolean;
+  disabledHint?: string;
 }
 
 export default function Transport({
@@ -40,10 +49,20 @@ export default function Transport({
   onTempo,
   onMetronome,
   onLoop,
+  disabled = false,
+  disabledHint,
 }: TransportProps) {
   const totalBeats = Math.max(beatsPerMeasure(score), scoreEnd(score));
   const pos = beatToBarBeat(score, Math.min(beat, totalBeats - 0.001));
   const empty = score.tracks.every((t) => t.notes.every((n) => n.pitch < 0));
+
+  if (disabled) {
+    return (
+      <div className="mu-transport" data-disabled="true">
+        <span style={{ fontSize: 12, color: "var(--mu-muted)" }}>{disabledHint ?? "走带条在当前视图不可用"}</span>
+      </div>
+    );
+  }
 
   const jumpMeasure = (dir: -1 | 1) => {
     const bpm = beatsPerMeasure(score);

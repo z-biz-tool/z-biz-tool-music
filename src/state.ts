@@ -31,7 +31,7 @@ import { DEFAULT_PROVIDER, type AiProvider } from "./core/ai.ts";
 import { instrumentSpec } from "./core/theory.ts";
 import { demoScore } from "./core/demo.ts";
 
-export type ViewMode = "staff" | "jianpu" | "roll" | "mixer";
+export type ViewMode = "staff" | "jianpu" | "roll" | "mixer" | "lesson";
 
 export interface Settings {
   dark: boolean;
@@ -159,7 +159,7 @@ const initialScore = initial?.score ?? demoScore();
 function initialView(): ViewMode {
   try {
     const v = new URLSearchParams(window.location.search).get("view");
-    if (v === "staff" || v === "jianpu" || v === "roll" || v === "mixer") return v;
+    if (v === "staff" || v === "jianpu" || v === "roll" || v === "mixer" || v === "lesson") return v;
   } catch {
     /* 非浏览器环境（自检脚本）直接走默认 */
   }
