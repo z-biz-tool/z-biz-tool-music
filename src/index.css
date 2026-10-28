@@ -1,0 +1,408 @@
+:root {
+  /* 家族品牌色（z-biz-tool-shared/designTokens：#667eea → #764ba2），
+     音乐产品额外加一支青色做"声音"的强调色 */
+  --mu-accent: #667eea;
+  --mu-accent-2: #34e8d2;
+  --mu-warm: #ff6b6b;
+  --mu-amber: #f6a623;
+  --mu-brand: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --mu-motion: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+
+  --mu-bg: #0b0d17;
+  --mu-panel: rgba(20, 23, 40, 0.88);
+  --mu-panel-solid: #141728;
+  --mu-line: rgba(102, 126, 234, 0.22);
+  --mu-text: #e8eaf8;
+  --mu-muted: #98a0c8;
+  --mu-hover: rgba(102, 126, 234, 0.14);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family:
+    system-ui,
+    -apple-system,
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    sans-serif;
+  background: var(--mu-bg);
+}
+
+.mu-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--mu-text);
+  background:
+    radial-gradient(1100px 640px at 8% -10%, rgba(102, 126, 234, 0.2), transparent 62%),
+    radial-gradient(900px 560px at 96% 4%, rgba(52, 232, 210, 0.1), transparent 58%),
+    var(--mu-bg);
+}
+
+.mu-root[data-dark="false"] {
+  --mu-bg: #f5f6fc;
+  --mu-panel: rgba(255, 255, 255, 0.92);
+  --mu-panel-solid: #ffffff;
+  --mu-line: rgba(102, 126, 234, 0.24);
+  --mu-text: #1b1f38;
+  --mu-muted: #5d6486;
+  --mu-hover: rgba(102, 126, 234, 0.1);
+}
+
+/* ------------------------------------------------------------------ 顶栏 */
+
+.mu-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--mu-line);
+  background: var(--mu-panel);
+  backdrop-filter: blur(12px);
+}
+
+.mu-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  background: var(--mu-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  white-space: nowrap;
+}
+
+.mu-brand small {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--mu-muted);
+  -webkit-text-fill-color: var(--mu-muted);
+}
+
+.mu-title-input {
+  width: 220px;
+}
+
+.mu-spacer {
+  flex: 1;
+}
+
+/* ------------------------------------------------------------------ 布局 */
+
+.mu-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.mu-left {
+  width: 232px;
+  flex: 0 0 auto;
+  border-right: 1px solid var(--mu-line);
+  background: var(--mu-panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mu-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mu-right {
+  width: 336px;
+  flex: 0 0 auto;
+  border-left: 1px solid var(--mu-line);
+  background: var(--mu-panel);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mu-right[data-collapsed="true"] {
+  width: 0;
+  overflow: hidden;
+  border-left: none;
+}
+
+.mu-pane-head {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--mu-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--mu-line);
+}
+
+/* -------------------------------------------------------------- 轨道列表 */
+
+.mu-track {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  cursor: pointer;
+  transition: background var(--mu-motion);
+}
+
+.mu-track:hover {
+  background: var(--mu-hover);
+}
+
+.mu-track[data-active="true"] {
+  background: var(--mu-hover);
+  box-shadow: inset 3px 0 0 var(--mu-accent);
+}
+
+.mu-track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mu-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.mu-track-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.mu-track-meta {
+  font-size: 11px;
+  color: var(--mu-muted);
+  margin-top: 2px;
+}
+
+/* ------------------------------------------------------------ 视图容器 */
+
+.mu-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  padding: 18px 20px 28px;
+}
+
+.mu-paper {
+  background: var(--mu-panel-solid);
+  border-radius: 10px;
+  border: 1px solid var(--mu-line);
+  padding: 18px 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.mu-paper-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--mu-muted);
+}
+
+.mu-score-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--mu-text);
+}
+
+/* 五线谱容器：abcjs 会往里塞 svg */
+.mu-staff svg {
+  max-width: 100%;
+}
+
+.mu-staff {
+  color: var(--mu-text);
+}
+
+/* 播放头：按拍位比例覆盖在谱面上（abcjs 不暴露元素级时序，故用等比定位） */
+.mu-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--mu-accent-2);
+  box-shadow: 0 0 8px rgba(52, 232, 210, 0.8);
+  pointer-events: none;
+  transition: left 60ms linear;
+}
+
+/* ------------------------------------------------------------- 走带条 */
+
+.mu-transport {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--mu-line);
+  background: var(--mu-panel);
+}
+
+.mu-transport .mu-pos {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--mu-text);
+  min-width: 118px;
+}
+
+.mu-transport .mu-pos small {
+  color: var(--mu-muted);
+  margin-left: 6px;
+}
+
+.mu-roll-wrap {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--mu-line);
+  background: var(--mu-panel-solid);
+}
+
+.mu-roll-scroll {
+  overflow: auto;
+  max-height: calc(100vh - 250px);
+}
+
+/* --------------------------------------------------------------- 面板 */
+
+.mu-panel-body {
+  padding: 12px;
+  overflow: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.mu-field {
+  margin-bottom: 10px;
+}
+
+.mu-field > label {
+  display: block;
+  font-size: 12px;
+  color: var(--mu-muted);
+  margin-bottom: 4px;
+}
+
+.mu-hint {
+  font-size: 12px;
+  color: var(--mu-muted);
+  line-height: 1.6;
+}
+
+.mu-abc {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.mu-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mu-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--mu-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+/* 简谱里跟播放相关的强调色，跟着主题走 */
+.mu-jianpu text {
+  fill: var(--mu-text);
+  user-select: none;
+}
+
+.mu-jianpu text.mu-jp-active {
+  fill: var(--mu-accent-2);
+  font-weight: 700;
+}
+
+.mu-jianpu line,
+.mu-jianpu path {
+  stroke: var(--mu-text);
+}
+
+.mu-jianpu line.mu-jp-bar {
+  stroke: var(--mu-muted);
+  opacity: 0.55;
+}
+
+.mu-jianpu text.mu-jp-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------ 右面板：标签页要能自己滚 */
+/* 不加这几条，Tabs 的内容会顺着文档流长出面板底部，盖住走带条 */
+.mu-right .ant-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mu-right .ant-tabs-nav {
+  margin-bottom: 4px !important;
+}
+
+.mu-right .ant-tabs-content-holder {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mu-right .ant-tabs-content,
+.mu-right .ant-tabs-tabpane {
+  height: 100%;
+}
+
+/* ------------------------------------------------------------ 窄窗口降级 */
+@media (max-width: 1240px) {
+  .mu-left {
+    width: 200px;
+  }
+  .mu-right {
+    width: 300px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .mu-left {
+    width: 176px;
+  }
+  .mu-title-input {
+    width: 150px;
+  }
+}

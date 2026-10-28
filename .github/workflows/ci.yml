@@ -1,0 +1,67 @@
+name: CI
+
+# 门禁原来只能靠手动出包时才有：push 到 main 就跑这一条，不再用 tag 当唯一验证通道。
+# 只做 typecheck / 构建 / 内核自检，不产出发布物。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支新 push 取消旧 run：并行会话连续提交时，排队跑中间态只是烧 runner。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # verify 是 `node scripts/verify.ts` 直接跑 TypeScript，本机即 24+，这里对齐。
+          node-version: 24
+          # 锁文件已入库（Tauri 壳那批一并提交），npm 缓存可用。
+          cache: npm
+
+      # npm ci 而非 install：install 允许与 package-lock.json 漂移，那样"CI 绿"不对应任何一份确定的依赖树。
+      - name: Install dependencies
+        run: npm ci
+
+      # Rust 侧静态门（**只挂 fmt**）：本仓的 Rust 代码只有 12 行 Tauri 模板
+      # （src-tauri/src/lib.rs + main.rs），零逻辑零测试；真正的产品逻辑全在 TypeScript 那边，
+      # 上面的 typecheck / npm test / build / verify 已经管着。
+      # 所以这里只挂最便宜的那条 —— `cargo fmt` **不编译** crate，不需要 GTK/WebKit，
+      # 也不需要前端 dist（不像 `cargo test`/`clippy` 要展开 `tauri::generate_context!()`）。
+      # clippy 要真编译整个 crate（Linux 上还得先 apt 装 GTK/WebKit），为 12 行模板不值那个 runner 时间；
+      # Rust 侧的编译级保证也没丢：打 tag 时 build.yml 会在四个平台上真编一次 Tauri 包。
+      - name: Setup Rust (rustfmt)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Format
+        run: cargo fmt --all --check --manifest-path src-tauri/Cargo.toml
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # 本仓的 tests/*.test.ts 此前从来没进过 CI：仓库里有测试、package.json 里有
+      # test 脚本，但这条流水线只跑 typecheck + build（Rust 那边有 cargo test，
+      # 前端这边一个断言都没跑）。改了逻辑红了，CI 不会知道。
+      # 放在 Build 之前：断言是秒级的，挂在构建后面等于白挂。
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Kernel self-check
+        run: npm run verify

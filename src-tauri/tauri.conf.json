@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "z-biz-tool-music",
+  "version": "0.1.0",
+  "identifier": "com.zifang.z-biz-tool-music",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5200",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "MuseLab 音乐工坊",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1000,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ipc: https://ipc.localhost http://localhost:11434 https://api.deepseek.com https://api.openai.com https://api.moonshot.cn https://open.bigmodel.cn"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://raw.githubusercontent.com/z-biz-tool/z-biz-tool-music/main/latest.json"],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY5MjA2OThBNzlDN0IyNkUKUldSdXNzZDVpbWtnK2MvNSthMmJ5MU1nTmY5U2IrNFUzMURxdjBTQlpUNElwVGRJSHZDTG1FNFMK",
+      "//": "家族统一签名公钥（与 db/file/sys/math 同一把）；私钥在 CEO 本机 ~/.zbiz，GitHub Secrets 见 lead/doc/分发/updater-官方化指南.md。"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

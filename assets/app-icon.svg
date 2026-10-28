@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111C4E"/>
+      <stop offset="0.58" stop-color="#2C3C8C"/>
+      <stop offset="1" stop-color="#FF6B6B"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="72" y="72" width="880" height="880" rx="232" fill="url(#bg)"/>
+  <circle cx="716" cy="300" r="250" fill="url(#glow)"/>
+
+  <!-- 五线谱：家族母题，五条等距线 -->
+  <g fill="#FFFFFF" fill-opacity="0.45">
+    <rect x="176" y="352" width="672" height="16" rx="8"/>
+    <rect x="176" y="424" width="672" height="16" rx="8"/>
+    <rect x="176" y="496" width="672" height="16" rx="8"/>
+    <rect x="176" y="568" width="672" height="16" rx="8"/>
+    <rect x="176" y="640" width="672" height="16" rx="8"/>
+  </g>
+
+  <!-- 八分音符：符头压在第三线上，符干向上，符尾收在谱内 -->
+  <g fill="#FFFFFF">
+    <path d="M514 292 L538 292 L538 512 L514 512 Z"/>
+    <path d="M538 292 C 668 326 722 412 676 516 C 686 424 652 360 538 338 Z"/>
+    <ellipse cx="466" cy="512" rx="78" ry="56" transform="rotate(-18 466 512)"/>
+  </g>
+
+  <!-- 附点：让画面有一个明确的"点"，小尺寸下也能认出是音符 -->
+  <circle cx="646" cy="508" r="28" fill="#FFE9E9"/>
+</svg>

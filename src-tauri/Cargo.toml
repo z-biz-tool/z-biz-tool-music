@@ -1,0 +1,22 @@
+[package]
+name = "z-biz-tool-music"
+version = "0.1.0"
+description = "MuseLab 音乐工坊：一句话到一首曲——五线谱/简谱/钢琴卷帘同步编辑，多音色混音，AI 作曲"
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "z_biz_tool_music_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
