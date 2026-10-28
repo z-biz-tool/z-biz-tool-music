@@ -1,0 +1,23 @@
+{
+  "version": "0.1.0",
+  "notes": "See the assets below to download this version.",
+  "pub_date": "2026-10-28T14:56:46Z",
+  "platforms": {
+    "darwin-aarch64": {
+      "url": "https://github.com/z-biz-tool/z-biz-tool-music/releases/download/v0.1.0/z-biz-tool-music.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK1VCMzRSUzRoRUJkL0Q0bGdQLzFrRkcyeVhIYUNaQmNEclBySHppRXBtb0E4RE1KNFh1Sy9TNjJ4QzF3Q215TEV5a1kxZndHN3hpNnNIblpVczkvcXdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk4OTg1CWZpbGU6ei1iaXotdG9vbC1tdXNpYy5hcHAudGFyLmd6CXZlcnNpb246MC4xLjAKT3o2TzlJWkhURTF0ZlNyQ0JRUjJnZVRmODdoTU82L3AwMSsxa092K0R6MGRLcksydURqQTVma08yYzJidjlyRzJ6dmVuQXhNclRiUy83bmNOb2QzRFE9PQo="
+    },
+    "darwin-x86_64": {
+      "url": "https://github.com/z-biz-tool/z-biz-tool-music/releases/download/v0.1.0/z-biz-tool-music.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK1Fua2ZSZUsvcEsrWHJqeC96MEZuVndqTURRdW9xSUdBd1ZjUmZObDFMZlQyckRjaVpjZU92OUFCUEdxSlRqajcxemx3UGNWMUN5NU5iWGx1M0dKakFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk5MzY0CWZpbGU6ei1iaXotdG9vbC1tdXNpYy5hcHAudGFyLmd6CXZlcnNpb246MC4xLjAKdElnelF3YzBSZDlPZGhxeW1SNW90dVVUSlFPdjgxakJvRGJoZXNIdnZpRnFsNjBRVUZPUUZhRmhnRnBqQVJrMWlneEFoVnNIRWdGcTFUWkdIWjF5Qmc9PQo="
+    },
+    "linux-x86_64": {
+      "url": "https://github.com/z-biz-tool/z-biz-tool-music/releases/download/v0.1.0/z-biz-tool-music_0.1.0_amd64.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK2VQVUtkOHAydHdTV0M1Z3BtcU1IRkR2eUs5Y0lCbEQ5UDVzVFdWMXRZQUswQmZWZkNpODB1VFBHbDdvc0cwZzRON3Z2K2xySEZyUWwzVHZzdjZ6bUFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk5MTAyCWZpbGU6ei1iaXotdG9vbC1tdXNpY18wLjEuMF9hbWQ2NC5BcHBJbWFnZQl2ZXJzaW9uOjAuMS4wCkRYOGdhTExxRTNBZ3R3R2FaR0h5ZTYyNGdjTVFLT2kzVXVvYjBSd01Ld0xBK05JUkw1LzFsT2xkeXh6UHpJT2RLcXpwM3dDZ0l0Z0NxZDVIYk1PTURBPT0K"
+    },
+    "windows-x86_64": {
+      "url": "https://github.com/z-biz-tool/z-biz-tool-music/releases/download/v0.1.0/z-biz-tool-music_0.1.0_x64_en-US.msi",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSdXNzZDVpbWtnK1V1bXlZNlFWZTZVV0FqdWMxRnNQOXljOTUrenRsakpaaEdoMXY2RG5IeUovdGhvbVV6a0dMVUxFOUNTU0U0YkRLYVhDUUY3OGhsUEtwK1pLZ3N1UndZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk5MDIwCWZpbGU6ei1iaXotdG9vbC1tdXNpY18wLjEuMF94NjRfZW4tVVMubXNpCXZlcnNpb246MC4xLjAKTWZqcHE0a240cmxhVi80NnViZkpQT0hFbDRyY2oyWisrenM0bjAyQW1ESzcwd1YyUXJLRzl1L284VjNqM2RjaklQSmtCcmR6WHlra2xBTnFRcThxQkE9PQo="
+    }
+  }
+}
