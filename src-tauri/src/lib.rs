@@ -26,7 +26,11 @@ pub struct OpenedFile {
 
 /// 保存文件：弹「另存为」，然后写盘。返回实际落盘路径（用户取消返回 null）。
 #[tauri::command]
-async fn save_file(app: AppHandle, file_name: String, bytes: Vec<u8>) -> Result<Option<String>, String> {
+async fn save_file(
+    app: AppHandle,
+    file_name: String,
+    bytes: Vec<u8>,
+) -> Result<Option<String>, String> {
     let name = file_name.clone();
     let picked = tauri::async_runtime::spawn_blocking(move || {
         let (tx, rx) = mpsc::channel();
@@ -44,7 +48,9 @@ async fn save_file(app: AppHandle, file_name: String, bytes: Vec<u8>) -> Result<
     let Some(file_path) = picked else {
         return Ok(None);
     };
-    let path = file_path.into_path().map_err(|e| format!("路径无法解析：{e}"))?;
+    let path = file_path
+        .into_path()
+        .map_err(|e| format!("路径无法解析：{e}"))?;
     std::fs::write(&path, &bytes).map_err(|e| format!("写入失败：{e}"))?;
     Ok(Some(path.to_string_lossy().to_string()))
 }
@@ -65,7 +71,9 @@ async fn open_file(app: AppHandle) -> Result<Option<OpenedFile>, String> {
     let Some(file_path) = picked else {
         return Ok(None);
     };
-    let path = file_path.into_path().map_err(|e| format!("路径无法解析：{e}"))?;
+    let path = file_path
+        .into_path()
+        .map_err(|e| format!("路径无法解析：{e}"))?;
     let bytes = std::fs::read(&path).map_err(|e| format!("读取失败：{e}"))?;
     let name = path
         .file_name()
