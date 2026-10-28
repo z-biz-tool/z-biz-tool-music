@@ -64,18 +64,21 @@ function tonicBase(tonic: number): number {
 }
 
 /**
- * 每条轨各自选中音区：把「1」放到离该轨音域中位数最近的八度。
+ * 每条轨各自选中音区：让音域中位数落在「1 所在的那个八度」里。
  *
  * 不这么做的话，低音谱轨（C2 一带）在 G 大调里会写成「下方三个八度点」——
  * 技术上没错，但简谱惯例最多画两个点，三个点等于告诉读者"这行别用简谱"。
  * 让每条轨自己找音区，主旋律和低音就都落在 0~2 个点以内。
+ *
+ * 用 floor 而不是 round：中位数必须落进 base 这**一组**八度里，
+ * 取整到最近的八度会把整行整体推高一个八度，结果每个音都多个点（全行 "-1"）。
  */
 function chooseBase(pitches: number[], tonic: number): number {
   const nominal = tonicBase(tonic);
   if (pitches.length === 0) return nominal;
   const sorted = [...pitches].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)];
-  return nominal + Math.round((median - nominal) / 12) * 12;
+  return nominal + Math.floor((median - nominal) / 12) * 12;
 }
 
 /** 音高 → 级数 + 变化音；调外音取最近的级数并标 #/b */

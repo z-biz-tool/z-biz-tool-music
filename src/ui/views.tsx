@@ -132,6 +132,7 @@ export function JianpuView({ score, trackIndex, beat }: { score: Score; trackInd
   const track = score.tracks[trackIndex];
   const paperRef = useRef<HTMLDivElement | null>(null);
   const [avail, setAvail] = useState(0);
+  const [availH, setAvailH] = useState(0);
   const layout = useMemo(() => {
     try {
       return buildJianpu(score, trackIndex);
@@ -144,8 +145,16 @@ export function JianpuView({ score, trackIndex, beat }: { score: Score; trackInd
   useEffect(() => {
     const el = paperRef.current;
     if (!el) return;
-    const ro = new ResizeObserver((es) => setAvail(Math.floor(es[0]?.contentRect.width ?? 0)));
+    // 高度取父容器的：纸本身会被撑到父高，量自己就成了循环依赖
+    const parent = el.parentElement;
+    const ro = new ResizeObserver(() => {
+      // clientWidth 含 padding/border，而排版要的是净宽：减掉纸的 16×2 + 边框 1×2
+      setAvail(Math.max(0, Math.floor((el.clientWidth || 0) - 34)));
+      // 减掉 .mu-stage 的上下 padding（18 + 28）
+      setAvailH(Math.max(0, Math.floor((parent?.clientHeight ?? 0) - 46)));
+    });
     ro.observe(el);
+    if (parent) ro.observe(parent);
     return () => ro.disconnect();
   }, []);
 
@@ -166,69 +175,77 @@ export function JianpuView({ score, trackIndex, beat }: { score: Score; trackInd
   const height = rows.length * JP_ROW_H + 16;
 
   return (
-    <div className="mu-paper" ref={paperRef}>
+    <div
+      className="mu-paper"
+      ref={paperRef}
+      // 8 小节只排两行时纸会空出大半屏：把谱面放到纸张视觉中心，
+      // 而不是顶着上沿、下面一片黑——谱子看起来才像"一页"。
+      style={{ minHeight: availH > 0 ? availH : undefined, display: "flex", flexDirection: "column" }}
+    >
       <div className="mu-paper-head">
         <span className="mu-score-title">
           {score.title} <Tag color="blue">{track.name}</Tag>
         </span>
         <span>1 = {keyDigitLabel(score)} · {score.time[0]}/{score.time[1]} · {score.tempo} BPM</span>
       </div>
-      <svg className="mu-jianpu" width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
-        {rows.map((row, ri) => {
-          const y0 = ri * JP_ROW_H + 16;
-          const baseline = y0 + 32;
-          // 把剩余的横向空间平均摊给本行各小节，整行正好铺满，字距不变形
-          const natural = row.reduce((a, m) => a + measureWidth(m), 0);
-          const pad = Math.max(0, (width - natural) / Math.max(1, row.length));
-          let x = 0;
-          return (
-            <g key={ri}>
-              {row.map((measure) => {
-                const mw = measureWidth(measure) + pad;
-                const startX = x;
-                x += mw;
-                let cx = startX + 8;
-                return (
-                  <g key={measure.index}>
-                    <text x={startX + 4} y={y0 - 4} fontSize={9} opacity={0.45}>
-                      {measure.index + 1}
-                    </text>
-                    {measure.chords.length === 0 && (
-                      <text x={cx} y={baseline} fontSize={JP_FONT} opacity={0.35}>
-                        0
+      <div style={{ flex: 1, display: "flex", alignItems: "center", minHeight: 0 }}>
+        <svg className="mu-jianpu" width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
+          {rows.map((row, ri) => {
+            const y0 = ri * JP_ROW_H + 16;
+            const baseline = y0 + 32;
+            // 把剩余的横向空间平均摊给本行各小节，整行正好铺满，字距不变形
+            const natural = row.reduce((a, m) => a + measureWidth(m), 0);
+            const pad = Math.max(0, (width - natural) / Math.max(1, row.length));
+            let x = 0;
+            return (
+              <g key={ri}>
+                {row.map((measure) => {
+                  const mw = measureWidth(measure) + pad;
+                  const startX = x;
+                  x += mw;
+                  let cx = startX + 8;
+                  return (
+                    <g key={measure.index}>
+                      <text x={startX + 4} y={y0 - 4} fontSize={9} opacity={0.45}>
+                        {measure.index + 1}
                       </text>
-                    )}
-                    {measure.chords.map((chord, ci) => {
-                      const w = chordWidth(chord, JP_FONT);
-                      const active = beat >= chord.start - 1e-6 && beat < chord.start + chord.dur - 1e-6;
-                      const el = (
-                        <JianpuChordGlyph
-                          key={ci}
-                          chord={chord}
-                          x={cx}
-                          baseline={baseline}
-                          width={w}
-                          active={active}
-                        />
-                      );
-                      cx += w + 6;
-                      return el;
-                    })}
-                    <line
-                      className="mu-jp-bar"
-                      x1={startX + mw - 4}
-                      y1={y0 + 8}
-                      x2={startX + mw - 4}
-                      y2={baseline + 14}
-                      strokeWidth={1.2}
-                    />
-                  </g>
-                );
-              })}
-            </g>
-          );
-        })}
-      </svg>
+                      {measure.chords.length === 0 && (
+                        <text x={cx} y={baseline} fontSize={JP_FONT} opacity={0.35}>
+                          0
+                        </text>
+                      )}
+                      {measure.chords.map((chord, ci) => {
+                        const w = chordWidth(chord, JP_FONT);
+                        const active = beat >= chord.start - 1e-6 && beat < chord.start + chord.dur - 1e-6;
+                        const el = (
+                          <JianpuChordGlyph
+                            key={ci}
+                            chord={chord}
+                            x={cx}
+                            baseline={baseline}
+                            width={w}
+                            active={active}
+                          />
+                        );
+                        cx += w + 6;
+                        return el;
+                      })}
+                      <line
+                        className="mu-jp-bar"
+                        x1={startX + mw - 4}
+                        y1={y0 + 8}
+                        x2={startX + mw - 4}
+                        y2={baseline + 14}
+                        strokeWidth={1.2}
+                      />
+                    </g>
+                  );
+                })}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
       <div className="mu-hint" style={{ marginTop: 8 }}>
         简谱按首调唱名排（1 = 调式主音）；八度点上加下减，时值用减时线/增时线表示。
         {layout.beatsPerMeasure > 0 ? ` 每小节 ${layout.beatsPerMeasure} 拍。` : ""}
