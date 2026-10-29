@@ -23,12 +23,36 @@ import { INSTRUMENTS, instrumentSpec } from "../core/theory.ts";
 
 /* ============================================================== 五线谱 */
 
+/**
+ * abcjs 的 `Tune.setTiming()` 返回的事件表 —— 每一项对应一个已经排好版的元素，
+ * 带它在 SVG 里的真实坐标（left/top/height）和它落在第几行（line）。
+ *
+ * 这是「播放头能不能对住声音」的关键：之前拿不到它就退而求其次按整块宽度百分比画，
+ * 一旦谱面折行成两行，百分比就和音符的真实位置脱钩了。
+ */
+type TimingEvent = {
+  type?: string;
+  milliseconds: number;
+  /** 该元素左边界；连音线的后半段没有可视元素，left 为 null */
+  left?: number | null;
+  /** 该元素右边界（本行行尾，或同一行内下一个元素的左边界） */
+  endX?: number;
+  top?: number;
+  height?: number;
+  /** 折行后第几行，0 基 */
+  line?: number;
+};
+
 type Abcjs = {
   renderAbc: (
     target: HTMLElement,
     abc: string,
     params?: Record<string, unknown>,
   ) => unknown;
+};
+
+type Tune = {
+  setTiming?: (bpm?: number, measuresOfDelay?: number) => TimingEvent[];
 };
 
 let abcjsPromise: Promise<Abcjs> | null = null;
@@ -42,11 +66,129 @@ function loadAbcjs(): Promise<Abcjs> {
   return abcjsPromise;
 }
 
+/** 播放头相对谱面 SVG 的落点（都是 CSS px） */
+type HeadBox = { left: number; top: number; height: number };
+
+/**
+ * abcjs 的 `scale` 选项不是「渲染时把坐标乘进去」，而是给 `<svg>` 挂了一个
+ * CSS `transform: matrix(1.2, …)`：元素自身的布局盒仍是 716×693，但画出来的
+ * 内容被放大到 859×832。`setTiming()` 给的 left/top 是**布局盒坐标系**下的值，
+ * 所以播放头必须过一遍同一个变换，否则会一路偏左——8 小节能偏出小半行。
+ *
+ * 这里从计算样式里读实际矩阵，而不是把 1.2 写死：改 scale 时不用同步改两处。
+ */
+type SvgXform = { a: number; d: number; e: number; f: number };
+
+function svgXform(svg: Element | null): SvgXform {
+  const identity: SvgXform = { a: 1, d: 1, e: 0, f: 0 };
+  if (!svg) return identity;
+  const raw = getComputedStyle(svg).transform;
+  if (!raw || raw === "none") return identity;
+  try {
+    const m = new DOMMatrixReadOnly(raw);
+    return { a: m.a || 1, d: m.d || 1, e: m.e, f: m.f };
+  } catch {
+    return identity;
+  }
+}
+
+type StaffLayout = {
+  /** 时间轴上可用的锚点（有横坐标的那种），按时间升序 */
+  anchors: TimingEvent[];
+  /** 每一行谱的纵向区间；播放头只画在当前这一行上，不再一根竖线贯穿全谱 */
+  bands: Map<number, { top: number; bottom: number }>;
+  /** 拍 → 毫秒 */
+  msPerBeat: number;
+  /** 从 abcjs 布局坐标到屏幕像素的变换 */
+  xf: SvgXform;
+};
+
+/**
+ * 把 abcjs 的事件表整理成「拍位 → 屏幕上哪儿」的映射。
+ *
+ * `msPerBeat` 是用**整曲时长除以总拍数**反推的，而不是 `60000 / tempo`：
+ * abcjs 在 `Q:1/4=x` 与 `L:1/8` 之下会按 `warp` 折算一份自己的节拍长度，
+ * 复合拍号（6/8 等）时两者并不相等。用整曲比例反推天然与它自己的坐标自洽。
+ */
+function buildLayout(
+  raw: TimingEvent[],
+  totalBeats: number,
+  xf: SvgXform,
+): StaffLayout | null {
+  const anchors = raw.filter(
+    (t) => typeof t.left === "number" && Number.isFinite(t.milliseconds),
+  );
+  if (anchors.length < 2) return null;
+
+  const bands = new Map<number, { top: number; bottom: number }>();
+  for (const t of raw) {
+    if (
+      typeof t.line !== "number" ||
+      typeof t.top !== "number" ||
+      typeof t.height !== "number"
+    ) {
+      continue;
+    }
+    const bottom = t.top + t.height;
+    const band = bands.get(t.line);
+    if (!band) bands.set(t.line, { top: t.top, bottom });
+    else
+      bands.set(t.line, {
+        top: Math.min(band.top, t.top),
+        bottom: Math.max(band.bottom, bottom),
+      });
+  }
+
+  const endMs = raw[raw.length - 1]?.milliseconds ?? 0;
+  const msPerBeat = totalBeats > 0 && endMs > 0 ? endMs / totalBeats : 0;
+  return { anchors, bands, msPerBeat, xf };
+}
+
+function headAt(layout: StaffLayout, beat: number): HeadBox | null {
+  const { anchors, bands, msPerBeat, xf } = layout;
+  if (!msPerBeat) return null;
+
+  const ms = Math.max(0, beat) * msPerBeat;
+
+  // 二分：找最后一个「起点不晚于 ms」的锚点
+  let lo = 0;
+  let hi = anchors.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (anchors[mid].milliseconds <= ms) lo = mid;
+    else hi = mid - 1;
+  }
+
+  const ev = anchors[lo];
+  const next = anchors[lo + 1];
+  const from = ev.left as number;
+  // endX 是 abcjs 算好的「本元素右边界」：同一行内是下一个音符的位置，
+  // 行末则是本行宽度 —— 于是播放头会在行末走到最右，再跳回下一行行首。
+  const to = typeof ev.endX === "number" ? ev.endX : next ? (next.left as number) : from;
+
+  let frac = 0;
+  if (next && next.milliseconds > ev.milliseconds) {
+    frac = (ms - ev.milliseconds) / (next.milliseconds - ev.milliseconds);
+    frac = Math.min(1, Math.max(0, frac));
+  }
+
+  const band = bands.get(ev.line ?? 0);
+  const top = band ? band.top : (ev.top ?? 0);
+  const bottom = band ? band.bottom : top + (ev.height ?? 0);
+
+  return {
+    left: xf.a * (from + (to - from) * frac) + xf.e,
+    top: xf.d * top + xf.f,
+    height: Math.max(16, (bottom - top) * xf.d),
+  };
+}
+
 export function StaffView({ score, beat }: { score: Score; beat: number }) {
   const paperRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [width, setWidth] = useState(0);
+  const [layout, setLayout] = useState<StaffLayout | null>(null);
   const abc = useMemo(() => toAbc(score), [score]);
   const total = Math.max(1, scoreEnd(score));
 
@@ -72,7 +214,7 @@ export function StaffView({ score, beat }: { score: Score; beat: number }) {
         const abcjs = await loadAbcjs();
         if (cancelled || !hostRef.current) return;
         hostRef.current.innerHTML = "";
-        abcjs.renderAbc(hostRef.current, abc, {
+        const drawn = abcjs.renderAbc(hostRef.current, abc, {
           add_classes: true,
           staffwidth: Math.max(320, width - 40),
           scale: 1.2,
@@ -83,6 +225,26 @@ export function StaffView({ score, beat }: { score: Score; beat: number }) {
           wrap: { preferredMeasuresPerLine: 4, minSpacing: 1.7, maxSpacing: 2.6 },
           foregroundColor: "currentColor",
         });
+        if (cancelled) return;
+
+        /**
+         * 向 abcjs 要一份「哪个时刻对应屏幕上哪个坐标」的表。
+         *
+         * 必须排在 renderAbc 之后：setTiming 读的是 engraver.staffgroups，
+         * 谱还没画出来时它只会返回空数组。整段都兜住异常 —— 万一以后换版本
+         * 这个内部接口变了，播放头退回按比例定位，但谱面不能因此不显示。
+         */
+        const tune = Array.isArray(drawn) ? (drawn[0] as Tune | undefined) : undefined;
+        let raw: TimingEvent[] = [];
+        try {
+          raw = tune?.setTiming?.(score.tempo, 0) ?? [];
+        } catch {
+          raw = [];
+        }
+        // 乐谱写到 ABC 里已经补齐到整小节，所以整曲长度按小节算，而不是最后一个音符
+        const totalBeats = Math.max(1, measureCount(score) * beatsPerMeasure(score));
+        const svg = hostRef.current.querySelector("svg");
+        setLayout(buildLayout(raw, totalBeats, svgXform(svg)));
         setError(null);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -91,7 +253,9 @@ export function StaffView({ score, beat }: { score: Score; beat: number }) {
     return () => {
       cancelled = true;
     };
-  }, [abc, width]);
+  }, [abc, width, score]);
+
+  const head = layout ? headAt(layout, beat) : null;
 
   return (
     <div className="mu-paper" ref={paperRef}>
@@ -109,9 +273,24 @@ export function StaffView({ score, beat }: { score: Score; beat: number }) {
           这份乐谱可能是从 ABC 导入的，里面有排版引擎不认识的写法；简谱与卷帘不受影响。
         </div>
       ) : (
-        <div className="mu-staff" ref={hostRef} />
+        // 播放头必须和 abcjs 的 SVG 同处一个定位容器：abcjs 会清空自己的
+        // innerHTML，所以播放头不能放进 .mu-staff 里面
+        <div className="mu-staff-wrap">
+          <div className="mu-staff" ref={hostRef} />
+          {head ? (
+            <div
+              className="mu-playhead"
+              style={{ left: head.left, top: head.top, height: head.height }}
+            />
+          ) : (
+            // 拿不到元素级时序时的退路：按拍位比例画一根贯穿的线
+            <div
+              className="mu-playhead"
+              style={{ left: `${Math.min(100, (beat / total) * 100)}%`, top: 0, bottom: 0 }}
+            />
+          )}
+        </div>
       )}
-      <div className="mu-playhead" style={{ left: `${Math.min(100, (beat / total) * 100)}%` }} />
     </div>
   );
 }

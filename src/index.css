@@ -241,16 +241,25 @@ body {
   color: var(--mu-text);
 }
 
-/* 播放头：按拍位比例覆盖在谱面上（abcjs 不暴露元素级时序，故用等比定位） */
+/* abcjs 会清空 .mu-staff 的子节点，所以播放头放在这层定位容器里，
+   和 SVG 共享同一个坐标原点（SVG 从 0,0 开始） */
+.mu-staff-wrap {
+  position: relative;
+}
+
+/* 播放头：坐标来自 abcjs setTiming()，top/height 由当前所在谱线决定，
+   所以它只覆盖正在播放的那一行，而不是一根竖线贯穿整页 */
 .mu-playhead {
   position: absolute;
-  top: 0;
-  bottom: 0;
   width: 2px;
+  border-radius: 1px;
   background: var(--mu-accent-2);
   box-shadow: 0 0 8px rgba(52, 232, 210, 0.8);
   pointer-events: none;
-  transition: left 60ms linear;
+  transition:
+    left 45ms linear,
+    top 110ms ease,
+    height 110ms ease;
 }
 
 /* ------------------------------------------------------------- 走带条 */
