@@ -20,7 +20,7 @@ export interface TransportState {
   tempo: number;
 }
 
-type SynthLike = Tone.PolySynth<Tone.Synth>;
+type SynthLike = Tone.PolySynth<Tone.MonoSynth>;
 
 interface TrackNode {
   trackId: string;
@@ -34,24 +34,142 @@ function midiToFreq(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-interface VoicePreset {
-  oscillator: { type: string };
-  envelope: { attack: number; decay: number; sustain: number; release: number };
+/**
+ * 一个音色 = 振荡器 + 音量包络 + 低通滤波器 + 滤波包络。
+ *
+ * 为什么要「滤波包络」而不只是音量包络：真实乐器的起音那一刻最亮（击弦/吹气的
+ * 瞬态全是高频），随后能量往低频塌。只做音量包络的话，声音从第一个采样就带着
+ * 满血的高频，然后整体一起变轻 —— 听感就是"电子琴按到底、一坨音头砸过来"。
+ * 让滤波截止频率跟着包络走，才有"音头发亮、余音变暖"的层次。
+ *
+ * 为什么用 `partials` 加法合成而不是单一波形：triangle 只有奇次谐波、sine 没有
+ * 谐波、sawtooth 满谐波但全频段等能量（刺耳且混叠）。钢琴的真实泛音是
+ * 1 : 0.48 : 0.26 : 0.14 …这种快速收敛的分布，直接写出来比调波形准得多。
+ *
+ * `level` 是感知响度补偿：锯齿类音色能量集中在高频、听感上比正弦响得多，
+ * 不逐音色配平的话，换个音色整首曲子的平衡就变了。
+ */
+/** Tone 主入口没导出 RecursivePartial，这里抄一份等价定义 */
+type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends Array<infer U>
+    ? Array<DeepPartial<U>>
+    : T[P] extends object
+      ? DeepPartial<T[P]>
+      : T[P];
+};
+
+interface VoicePreset extends DeepPartial<Tone.MonoSynthOptions> {
+  /** 该音色的基础增益（dB），用于跨音色的响度配平 */
+  level: number;
 }
 
 const PRESETS: Record<InstrumentId, VoicePreset> = {
-  piano: { oscillator: { type: "triangle" }, envelope: { attack: 0.004, decay: 1.2, sustain: 0.12, release: 1.4 } },
-  epiano: { oscillator: { type: "sine" }, envelope: { attack: 0.006, decay: 0.9, sustain: 0.2, release: 1.0 } },
-  organ: { oscillator: { type: "square" }, envelope: { attack: 0.02, decay: 0.1, sustain: 0.9, release: 0.4 } },
-  guitar: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.005, decay: 0.6, sustain: 0.08, release: 0.5 } },
-  bass: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.5, release: 0.25 } },
-  strings: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.18, decay: 0.4, sustain: 0.7, release: 0.9 } },
-  brass: { oscillator: { type: "square" }, envelope: { attack: 0.08, decay: 0.3, sustain: 0.6, release: 0.4 } },
-  reed: { oscillator: { type: "square" }, envelope: { attack: 0.05, decay: 0.25, sustain: 0.7, release: 0.3 } },
-  pipe: { oscillator: { type: "sine" }, envelope: { attack: 0.04, decay: 0.2, sustain: 0.8, release: 0.35 } },
-  synth: { oscillator: { type: "sawtooth" }, envelope: { attack: 0.02, decay: 0.4, sustain: 0.3, release: 0.5 } },
-  pad: { oscillator: { type: "sine" }, envelope: { attack: 0.6, decay: 0.8, sustain: 0.8, release: 1.8 } },
-  drums: { oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 } },
+  // 钢琴：泛音要一直铺到 4kHz 以上，否则只听得到基频 —— 实测 6 个 partial 时
+  // C4 的中频占比只有 12%，听感就是"圆滚滚没有细节"。加到 14 个之后中频有内容、
+  // 高音区才有"铃"的光泽。PeriodicWave 是查表，加 partial 不增加播放时 CPU。
+  piano: {
+    oscillator: {
+      type: "custom",
+      partials: [1, 0.52, 0.32, 0.21, 0.15, 0.11, 0.08, 0.06, 0.045, 0.034, 0.026, 0.02, 0.015, 0.011],
+    },
+    // sustain 0.12 而不是 0.035：0.035 意味着一个四分音符在 0.8 秒内就衰减到听不见，
+    // 那种"点一下就没了"是拨弦，不是钢琴。按住键时音应该还在，只是慢慢退。
+    envelope: { attack: 0.002, decay: 2.4, sustain: 0.12, release: 0.6 },
+    filter: { type: "lowpass", rolloff: -24, Q: 0.6, frequency: 6500 },
+    filterEnvelope: { attack: 0.001, decay: 1.1, sustain: 0.08, release: 0.6, octaves: 1.2, exponent: 2 },
+    level: -6,
+  },
+  // 电钢：比钢琴少一半泛音、更圆，尾巴带一点"铃"感
+  epiano: {
+    oscillator: { type: "custom", partials: [1, 0.3, 0.15, 0.08, 0.045, 0.025, 0.014, 0.008] },
+    envelope: { attack: 0.003, decay: 1.6, sustain: 0.14, release: 0.8 },
+    filter: { type: "lowpass", rolloff: -24, Q: 0.5, frequency: 4200 },
+    filterEnvelope: { attack: 0.001, decay: 0.8, sustain: 0.12, release: 0.8, octaves: 1.2 },
+    level: -6,
+  },
+  // 风琴：拉杆式（drawbar）整数组谐波，几乎没有起音过程，一按就是稳态
+  organ: {
+    oscillator: { type: "custom", partials: [1, 0.62, 0.4, 0.3, 0.2, 0.14, 0.1, 0.07, 0.05] },
+    envelope: { attack: 0.012, decay: 0.06, sustain: 0.92, release: 0.22 },
+    filter: { type: "lowpass", rolloff: -12, Q: 0.4, frequency: 6500 },
+    filterEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.3, octaves: 0.5 },
+    level: -9,
+  },
+  // 吉他：拨弦泛音比钢琴更亮、衰减更慢（指甲/拨片的那层"沙"就在 2-5kHz）
+  guitar: {
+    oscillator: {
+      type: "custom",
+      partials: [1, 0.7, 0.55, 0.42, 0.32, 0.24, 0.18, 0.13, 0.095, 0.07, 0.05, 0.036, 0.026, 0.018],
+    },
+    envelope: { attack: 0.003, decay: 1.2, sustain: 0.05, release: 0.45 },
+    filter: { type: "lowpass", rolloff: -24, Q: 0.7, frequency: 6000 },
+    filterEnvelope: { attack: 0.001, decay: 0.6, sustain: 0.03, release: 0.45, octaves: 1.6, exponent: 2 },
+    level: -7,
+  },
+  // 贝斯：只留前五次谐波，低通压到 1.2k —— 贝斯一旦有高频就会盖住旋律
+  bass: {
+    oscillator: { type: "custom", partials: [1, 0.38, 0.16, 0.07, 0.03] },
+    envelope: { attack: 0.008, decay: 0.6, sustain: 0.32, release: 0.18 },
+    filter: { type: "lowpass", rolloff: -24, Q: 0.8, frequency: 1200 },
+    filterEnvelope: { attack: 0.004, decay: 0.3, sustain: 0.16, release: 0.2, octaves: 1.4, exponent: 2 },
+    level: -6,
+  },
+  // 弦乐：多振荡器微失谐（spread）才有"一群人在拉"的厚度，单一锯齿永远像合成器
+  strings: {
+    oscillator: { type: "fatsawtooth", count: 4, spread: 26 },
+    envelope: { attack: 0.16, decay: 0.5, sustain: 0.72, release: 0.8 },
+    filter: { type: "lowpass", rolloff: -24, Q: 0.9, frequency: 3000 },
+    filterEnvelope: { attack: 0.3, decay: 0.8, sustain: 0.5, release: 1.0, octaves: 1.0 },
+    level: -12,
+  },
+  // 铜管：方波族 + 明显的"吹起来"亮度上扬（滤波包络 octaves 大）
+  brass: {
+    oscillator: { type: "fatsquare", count: 3, spread: 14 },
+    envelope: { attack: 0.06, decay: 0.32, sustain: 0.62, release: 0.35 },
+    filter: { type: "lowpass", rolloff: -24, Q: 1.1, frequency: 2800 },
+    filterEnvelope: { attack: 0.05, decay: 0.35, sustain: 0.35, release: 0.4, octaves: 1.6 },
+    level: -12,
+  },
+  // 簧片：比铜管更窄更暗，用来区分单簧管/双簧管那一类
+  reed: {
+    oscillator: { type: "fatsquare", count: 3, spread: 10 },
+    envelope: { attack: 0.04, decay: 0.24, sustain: 0.68, release: 0.28 },
+    filter: { type: "lowpass", rolloff: -24, Q: 0.9, frequency: 2200 },
+    filterEnvelope: { attack: 0.03, decay: 0.2, sustain: 0.4, release: 0.3, octaves: 1.2 },
+    level: -11,
+  },
+  // 管乐（长笛）：几乎只有基频 + 一点高次泛音，这才是长笛"空"的原因
+  pipe: {
+    oscillator: { type: "custom", partials: [1, 0.2, 0.1, 0.05, 0.025, 0.012] },
+    envelope: { attack: 0.05, decay: 0.2, sustain: 0.84, release: 0.3 },
+    filter: { type: "lowpass", rolloff: -12, Q: 0.5, frequency: 4200 },
+    filterEnvelope: { attack: 0.06, decay: 0.3, sustain: 0.6, release: 0.35, octaves: 0.6 },
+    level: -7,
+  },
+  // 合成：宽失谐锯齿 + 高 Q 低通，带一点合成器特有的"哇"味
+  synth: {
+    oscillator: { type: "fatsawtooth", count: 5, spread: 34 },
+    envelope: { attack: 0.015, decay: 0.42, sustain: 0.28, release: 0.5 },
+    filter: { type: "lowpass", rolloff: -24, Q: 6, frequency: 2000 },
+    filterEnvelope: { attack: 0.01, decay: 0.4, sustain: 0.15, release: 0.45, octaves: 2.2 },
+    level: -12,
+  },
+  // 铺底：起音极慢、失谐最大，低通压到 1.5k —— 它只负责垫空气，不该抢任何东西
+  pad: {
+    oscillator: { type: "fatsawtooth", count: 6, spread: 44 },
+    envelope: { attack: 0.8, decay: 1.6, sustain: 0.82, release: 2.4 },
+    filter: { type: "lowpass", rolloff: -24, Q: 0.6, frequency: 1500 },
+    filterEnvelope: { attack: 1.4, decay: 2, sustain: 0.7, release: 2.4, octaves: 0.6 },
+    level: -15,
+  },
+  // 打击乐走 DrumKit，这组参数只用于兜底
+  drums: {
+    oscillator: { type: "sine" },
+    envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.1 },
+    filter: { type: "lowpass", rolloff: -12, Q: 0.5, frequency: 6000 },
+    filterEnvelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1, octaves: 0.5 },
+    level: -6,
+  },
 };
 
 /** 简易鼓组：底鼓/军鼓/踩镲，按 GM 打击乐的常用音高分配 */
@@ -84,23 +202,109 @@ class DrumKit {
   }
 }
 
-function makeNode(track: Track): TrackNode {
-  const channel = new Tone.Channel({ volume: gainToDb(track.volume), pan: track.pan, mute: track.mute }).toDestination();
+/**
+ * 混音总线：压缩 → 空间 → 限幅。
+ *
+ * 这三件东西解决的都是"干声直出"的毛病，缺一件听感就不对：
+ *   - 压缩：多个轨同时响时把峰值按下去、把小音量抬起来，音量层次才稳。
+ *     没有它，一轨独奏和六轨齐奏的响度能差一倍以上。
+ *   - 空间：纯干声听起来像"贴着耳朵吹"，每个音都没有房间。给一点点混响
+ *     （wet 0.13）就足以让声音退到墙里面去，而不至于变成教堂。
+ *   - 限幅：兜住前面压缩没按住的瞬态。没有它，密集和弦会直接把采样顶到
+ *     0dBFS 以上，也就是数字削波 —— 那种"撕裂"的失真不是音色差，是过载。
+ *
+ * 用 Freeverb 而不是 Tone.Reverb：后者要靠异步生成脉冲响应，实时可能还没就绪，
+ * 而 Tone.Offline 离线渲染时几乎肯定还没就绪 —— 那会导致导出的音频没有混响、
+ * 和实时听的对不上。Freeverb 是纯算法延迟网络，同步可用，两条路径一致。
+ */
+class MixBus {
+  readonly input: Tone.Gain;
+  private hp: Tone.Filter;
+  private comp: Tone.Compressor;
+  private verb: Tone.Freeverb;
+  private limiter: Tone.Limiter;
+
+  constructor() {
+    this.input = new Tone.Gain(1);
+    // 70Hz 以下人耳基本听不出音高，只会让功放白费力气、让低频糊成一片。
+    // 钢琴左手的低音和贝斯原本就挤在这段里打架，切掉之后低频立刻干净一档。
+    this.hp = new Tone.Filter({ type: "highpass", frequency: 70, rolloff: -12, Q: 0.5 });
+    this.comp = new Tone.Compressor({
+      threshold: -20,
+      ratio: 3,
+      attack: 0.008,
+      release: 0.18,
+      knee: 12,
+    });
+    // roomSize 太大（>0.85）会拖出一层金属残响，dampening 太低（<2000Hz）会让
+    // 高频毛发变多。0.72 + 2400Hz 是这两头之间的甜点。
+    this.verb = new Tone.Freeverb({ roomSize: 0.72, dampening: 2400 });
+    this.verb.wet.value = 0.13;
+    this.limiter = new Tone.Limiter(-1);
+    this.input.chain(this.hp, this.comp, this.verb, this.limiter, Tone.getDestination());
+  }
+
+  dispose(): void {
+    this.input.dispose();
+    this.hp.dispose();
+    this.comp.dispose();
+    this.verb.dispose();
+    this.limiter.dispose();
+  }
+}
+
+/**
+ * 把 preset 摊成 Tone.MonoSynth 的构造参数。
+ *
+ * **必须**把 filter.frequency 显式同步给 filterEnvelope.baseFrequency。
+ *
+ * Tone 的 FrequencyEnvelope 默认 baseFrequency 是 200Hz，而 MonoSynth 内部做的是
+ * `filterEnvelope.connect(filter.frequency)` —— 也就是说滤波截止频率被包络整个
+ * 接管了，你在 filter 里写的值根本不会被读。症状极其隐蔽：代码看着设了 6.5kHz
+ * 低通，实际稳态截止只有 200Hz 出头，声音被闷成一个没有泛音的点，而频谱图上
+ * 一切"正常"（就是低频多）。这是音色发闷、像玩具琴的核心原因。
+ */
+function voiceOptions(p: VoicePreset): DeepPartial<Tone.MonoSynthOptions> {
+  const cutoff = (p.filter as { frequency?: number } | undefined)?.frequency;
+  return {
+    oscillator: p.oscillator,
+    envelope: p.envelope,
+    filter: p.filter,
+    filterEnvelope: cutoff === undefined ? p.filterEnvelope : { ...p.filterEnvelope, baseFrequency: cutoff },
+    volume: p.level,
+  };
+}
+
+function makeNode(track: Track, bus: Tone.InputNode): TrackNode {
+  const channel = new Tone.Channel({ volume: gainToDb(track.volume), pan: track.pan, mute: track.mute }).connect(bus);
   if (track.instrument === "drums") {
     return { trackId: track.id, synth: null, kit: new DrumKit(channel), channel, instrument: track.instrument };
   }
   const preset = PRESETS[track.instrument] ?? PRESETS.piano;
-  const synth = new Tone.PolySynth(Tone.Synth, {
-    oscillator: preset.oscillator as Tone.SynthOptions["oscillator"],
-    envelope: preset.envelope,
-    volume: -6,
-  }).connect(channel);
+  const synth = new Tone.PolySynth(Tone.MonoSynth, voiceOptions(preset)).connect(channel);
   return { trackId: track.id, synth, kit: null, channel, instrument: track.instrument };
+}
+
+/** 教具琴/独奏用的钢琴音色，和 PRESETS.piano 同一个配方 */
+function makePianoSynth(): Tone.PolySynth<Tone.MonoSynth> {
+  return new Tone.PolySynth(Tone.MonoSynth, voiceOptions(PRESETS.piano));
 }
 
 function gainToDb(gain: number): number {
   const g = Math.max(0.0001, Math.min(1, gain));
   return 20 * Math.log10(g);
+}
+
+/**
+ * MIDI 力度 → 增益。
+ *
+ * 直接用 vel/127 当振幅，听感上「轻按」和「重按」几乎一样响 —— 因为人耳对响度
+ * 是对数感知的，线性振幅的差别会被压扁。开 1.35 次方之后动态才拉开：弱音真的
+ * 退到后面，重音真的顶上来，一首曲子的起伏才听得出来。
+ */
+function velocityGain(vel: number): number {
+  const v = Math.max(1, Math.min(127, vel)) / 127;
+  return Math.max(0.06, Math.pow(v, 1.35));
 }
 
 /** 一段可播放的音符事件（拍 → 秒） */
@@ -120,6 +324,8 @@ function eventsOf(track: Track): Event[] {
 
 export class PlaybackEngine {
   private nodes = new Map<string, TrackNode>();
+  /** 全局总线：所有轨、教具琴、节拍器都汇到这里 */
+  private bus: MixBus | null = null;
   private score: Score | null = null;
   private scheduled: number[] = [];
   private metronomeId: number | null = null;
@@ -133,12 +339,24 @@ export class PlaybackEngine {
    * 为什么不用 load() 里那套按轨建的节点：课程练习时学生自己决定什么时候弹，
    * 不经过 Transport 的时钟，而且换课时不该重建音色（会有明显延迟）。
    */
-  private tutor: Tone.PolySynth<Tone.Synth> | null = null;
+  private tutor: Tone.PolySynth<Tone.MonoSynth> | null = null;
   /** 走带状态回调（播放头位置等），由 UI 订阅 */
   onTick: ((state: TransportState) => void) | null = null;
 
   constructor() {
     Tone.getTransport().on("stop", () => this.emit());
+  }
+
+  /**
+   * 拿总线，没有就造一条。
+   *
+   * 懒建的原因：Tone 的节点必须在音频上下文可用之后创建才有意义，而这个类
+   * 在模块加载时就被 new 出来了。放在第一次 load / pluck 时建，那时上下文
+   * 一定已经存在。
+   */
+  private ensureBus(): MixBus {
+    if (!this.bus) this.bus = new MixBus();
+    return this.bus;
   }
 
   private secPerBeat(score: Score | null = this.score): number {
@@ -164,10 +382,35 @@ export class PlaybackEngine {
       n.channel.dispose();
     }
     this.nodes.clear();
-    for (const t of score.tracks) this.nodes.set(t.id, makeNode(t));
+    const bus = this.ensureBus();
+    for (const t of score.tracks) this.nodes.set(t.id, makeNode(t, bus.input));
     this.scheduleAll();
+    this.warmup();
     Tone.getTransport().loop = this.loop !== null;
     this.emit();
+  }
+
+  /**
+   * 预热 voice。
+   *
+   * Tone.PolySynth 的 voice 是懒创建的 —— 第一次触发某个音才 new 一个 MonoSynth，
+   * 里面要现建振荡器、两个包络和一个 biquad。一个八度的和弦同时响起时，这些构造
+   * 全挤进同一帧，表现就是**第一个和弦比后面的慢半拍，偶尔还带一声咔哒**。
+   * 这里用 -80dB 的极短音先把常用音区的 voice 建出来，代价是听不见。
+   */
+  private warmup(): void {
+    const now = Tone.now() + 0.05;
+    const probes = ["A2", "A3", "A4", "A5"];
+    for (const node of this.nodes.values()) {
+      if (!node.synth) continue;
+      try {
+        probes.forEach((note, i) => {
+          node.synth?.triggerAttackRelease(note, 0.02, now + i * 0.01, 0.0001);
+        });
+      } catch {
+        /* 预热失败不影响正常播放，忽略 */
+      }
+    }
   }
 
   /** 只改混音参数时不重建音色（拖动推子不该断音） */
@@ -213,7 +456,7 @@ export class PlaybackEngine {
         const id = transport.schedule((time) => {
           const dur = Math.max(0.05, ev.durBeats * spb);
           if (node.kit) node.kit.trigger(time, ev.pitch, dur, ev.vel);
-          else node.synth?.triggerAttackRelease(midiToFreq(ev.pitch), dur, time, Math.max(0.05, ev.vel / 127));
+          else node.synth?.triggerAttackRelease(midiToFreq(ev.pitch), dur, time, velocityGain(ev.vel));
         }, ev.beat * spb);
         this.scheduled.push(id);
       }
@@ -353,7 +596,9 @@ export class PlaybackEngine {
     if (!score) return;
     const spb = this.secPerBeat(score);
     if (!this.clickSynth) {
-      this.clickSynth = new Tone.MembraneSynth({ pitchDecay: 0.008, octaves: 2, volume: -18 }).toDestination();
+      // 节拍器走同一条总线，跟着限幅一起兜底；音量压得比原来低一档，
+      // 因为总线的压缩会把它抬起来。
+      this.clickSynth = new Tone.MembraneSynth({ pitchDecay: 0.008, octaves: 2, volume: -22 }).connect(this.ensureBus().input);
     }
     const click = this.clickSynth;
     const beatsPerBar = (score.time[0] * 4) / score.time[1];
@@ -388,11 +633,10 @@ export class PlaybackEngine {
     if (pitch < 0) return;
     await this.ensureContextRunning();
     if (!this.tutor) {
-      this.tutor = new Tone.PolySynth(Tone.Synth, {
-        oscillator: PRESETS.piano.oscillator as Tone.SynthOptions["oscillator"],
-        envelope: PRESETS.piano.envelope,
-        volume: -4,
-      }).toDestination();
+      // 接总线而不是直出：教具琴和伴奏必须在同一个空间里，否则弹一句就听得出
+      // "琴在外面、伴奏在里面"——这种割裂感比音色本身更影响练习体验。
+      this.tutor = makePianoSynth().connect(this.ensureBus().input);
+      this.tutor.volume.value = -4;
     }
     this.tutor.triggerAttackRelease(midiToFreq(pitch), Math.max(0.08, durSec), undefined, Math.max(0.05, Math.min(1, vel)));
   }
@@ -418,6 +662,10 @@ export class PlaybackEngine {
     this.nodes.clear();
     this.tutor?.dispose();
     this.tutor = null;
+    this.clickSynth?.dispose();
+    this.clickSynth = null;
+    this.bus?.dispose();
+    this.bus = null;
   }
 }
 
@@ -464,7 +712,10 @@ export async function renderWav(score: Score): Promise<Uint8Array> {
   const duration = Math.max(2, endBeat * spb + tail);
   const buffer = await Tone.Offline(() => {
     const transport = Tone.getTransport();
-    const nodes: TrackNode[] = score.tracks.map((t) => makeNode(t));
+    // 离线渲染也要过同一条总线：不加的话导出的 WAV 是没压缩、没混响、可能
+    // 削波的干声，和用户在应用里听到的完全不是一个东西。
+    const bus = new MixBus();
+    const nodes: TrackNode[] = score.tracks.map((t) => makeNode(t, bus.input));
     const audible = new Set(audibleTracks(score).map((t) => t.id));
     score.tracks.forEach((track) => {
       const node = nodes.find((n) => n.trackId === track.id);
@@ -473,7 +724,7 @@ export async function renderWav(score: Score): Promise<Uint8Array> {
         transport.schedule((time) => {
           const dur = Math.max(0.05, ev.durBeats * spb);
           if (node.kit) node.kit.trigger(time, ev.pitch, dur, ev.vel);
-          else node.synth?.triggerAttackRelease(midiToFreq(ev.pitch), dur, time, Math.max(0.05, ev.vel / 127));
+          else node.synth?.triggerAttackRelease(midiToFreq(ev.pitch), dur, time, velocityGain(ev.vel));
         }, ev.beat * spb);
       }
     });
