@@ -20,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ipc: https://ipc.localhost http://localhost:11434 https://api.deepseek.com https://api.openai.com https://api.moonshot.cn https://open.bigmodel.cn"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' ipc: https://ipc.localhost http://localhost:11434 https://api.deepseek.com https://api.openai.com https://api.moonshot.cn https://open.bigmodel.cn"
     }
   },
   "plugins": {

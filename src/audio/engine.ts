@@ -196,13 +196,20 @@ export class PlaybackEngine {
     const score = this.score;
     if (!score) return;
     const spb = this.secPerBeat(score);
+    // 让 transport 的 bpm 与乐谱对齐。事件是按秒排的，理论上 bpm 不参与也能对，
+    // 但 transport.ticks / position / loopStart 都靠 bpm 换算，两边不一致时
+    // 读数是歪的（比如 72 BPM 的曲子 transport.bpm 显示 120）。对齐后 tick 与拍
+    // 一一对应，排查问题看 tick 数就等于看拍数。
+    transport.bpm.value = score.tempo;
     const audible = new Set(audibleTracks(score).map((t) => t.id));
     for (const track of score.tracks) {
       const node = this.nodes.get(track.id);
       if (!node) continue;
-      const isAudible = audible.has(track.id);
+      // 不可闻的轨整轨跳过。这里必须在事件循环【外】判断：
+      // 之前写成循环内的 break，第一个事件就把整轨的调度打断了 —— 后果是
+      // 该轨一个音都不响，而且现象是"少了一层"，比全静音更难查。
+      if (!audible.has(track.id)) continue;
       for (const ev of eventsOf(track)) {
-        if (!isAudible) break;
         const id = transport.schedule((time) => {
           const dur = Math.max(0.05, ev.durBeats * spb);
           if (node.kit) node.kit.trigger(time, ev.pitch, dur, ev.vel);
@@ -235,8 +242,65 @@ export class PlaybackEngine {
     return this.score;
   }
 
+  /**
+   * 唤醒音频上下文。
+   *
+   * 直接 `await Tone.start()` 在 WebKit（Tauri 的 WKWebView 就是它）上不可靠：
+   * Safari 系的 AudioContext 有个 `interrupted` 中间态，resume() 的 promise 会
+   * 一直悬着不 resolve —— 实测能挂 3 秒以上，用户体感就是"点了播放没反应"。
+   *
+   * 所以这里不信任 Tone.start() 的 promise：
+   *   1. 先不等它，直接把 resume 的 promise 挂在后台；
+   *   2. 用带超时的等待去卡状态；
+   *   3. 超时或状态不是 running 时，改用裸 AudioContext.resume() 兜底。
+   * 只要最后状态是 running 就够了 —— 音频图能不能出声由它决定，不由 promise 决定。
+   */
+  private async ensureContextRunning(): Promise<void> {
+    const ctx = Tone.getContext();
+    /**
+     * 每次都重新读一遍状态，而不是直接比较 `ctx.state`。
+     *
+     * 两个理由：一是它是 getter，值会随 resume 变化，TS 却会因为前面的一次
+     * 提前返回把类型收窄成「非 running」，后面再比较就报 TS2367；二是这里本来
+     * 就需要在多个时间点分别取快照，而不是拿一个旧值判断。
+     */
+    const stateOf = (): string => ctx.state;
+    if (stateOf() === "running") return;
+
+    // 不 await Tone.start()：它在 WebKit 上可能永不 settle。
+    const startPromise = Tone.start().then(
+      () => undefined,
+      () => undefined,
+    );
+    const settled = await Promise.race([
+      startPromise.then(() => true),
+      new Promise<boolean>((r) => setTimeout(() => r(false), 1200)),
+    ]);
+
+    if (!settled || stateOf() !== "running") {
+      // 兜底：直接对底层 AudioContext 调 resume，Safari 上更可能立刻进 running。
+      const raw = ctx.rawContext as AudioContext & { state: string };
+      try {
+        await Promise.race([
+          raw.resume(),
+          new Promise<void>((r) => setTimeout(r, 1200)),
+        ]);
+      } catch {
+        /* resume 失败时下面的状态检查会兜住 */
+      }
+    }
+
+    // 最后再确认一次；不是 running 就明确抛错，让 UI 提示"系统未允许声音"，
+    // 而不是让用户对着一个无声的播放头发呆。
+    if (stateOf() !== "running") {
+      throw new Error(
+        `音频未能启动（当前状态 ${stateOf()}）。请检查系统是否允许本应用输出声音。`,
+      );
+    }
+  }
+
   async play(fromBeat?: number): Promise<void> {
-    await Tone.start();
+    await this.ensureContextRunning();
     const transport = Tone.getTransport();
     if (fromBeat !== undefined) transport.seconds = fromBeat * this.secPerBeat();
     this.startTicker();
@@ -322,7 +386,7 @@ export class PlaybackEngine {
    */
   async pluck(pitch: number, durSec = 0.9, vel = 0.7): Promise<void> {
     if (pitch < 0) return;
-    await Tone.start();
+    await this.ensureContextRunning();
     if (!this.tutor) {
       this.tutor = new Tone.PolySynth(Tone.Synth, {
         oscillator: PRESETS.piano.oscillator as Tone.SynthOptions["oscillator"],
