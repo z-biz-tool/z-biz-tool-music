@@ -128,6 +128,22 @@ export default function App() {
     return engineRef.current;
   }, []);
 
+  /*
+   * 采样预热：钢琴有 23 个采样、解码要两三百毫秒。等用户点播放才开始加载的话，
+   * 第一次播放会先愣一下。挂载时就按当前乐谱用到的音色预解码，之后 load() 是
+   * 纯缓存命中，点下去就响。
+   */
+  useEffect(() => {
+    void import("./audio/samples.ts").then((m) => {
+      // 退回合成是静默降级：还能响，只是音色变回电子味。release 版没有控制台，
+      // 所以必须让它有机会变成一句用户和我都能看见的提示。
+      m.setSampleFallbackHandler(() => {
+        useStore.getState().say("音色采样加载失败，已退回合成音色", "err");
+      });
+      void m.preloadFor(useStore.getState().score.tracks.map((t) => t.instrument));
+    });
+  }, []);
+
   /* 结构变化 → 重建；只动混音 → 只同步推子 */
   useEffect(() => {
     const eng = engineRef.current;
@@ -139,12 +155,16 @@ export default function App() {
     }
     const wasPlaying = useStore.getState().playing;
     const at = useStore.getState().beat;
-    eng.load(score);
     sigRef.current = sig;
-    if (wasPlaying) {
-      eng.seek(at);
-      void eng.play();
-    }
+    // load 现在是异步的（要先解码采样），等它回来再续播 ——
+    // 否则会在空节点上 seek，然后播出一段静音
+    void (async () => {
+      await eng.load(score);
+      if (wasPlaying) {
+        eng.seek(at);
+        void eng.play();
+      }
+    })();
   }, [score]);
 
   useEffect(() => {
@@ -173,7 +193,7 @@ export default function App() {
       const eng = await ensureEngine();
       const sig = structureSig(useStore.getState().score);
       if (!eng.isLoaded || sig !== sigRef.current) {
-        eng.load(useStore.getState().score);
+        await eng.load(useStore.getState().score);
         sigRef.current = sig;
       }
       const st = useStore.getState();

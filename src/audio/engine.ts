@@ -1,9 +1,14 @@
 /**
  * 播放引擎（Tone.js）。
  *
- * 设计取舍：
- *   - 不做采样音源：随包带 SoundFont 是 100MB 级 + 授权风险，v0.1 用合成音色族
- *     （钢琴/电钢/风琴/吉他/贝斯/弦乐/铜管/簧片/管乐/合成/铺底/打击）先把"能听、能调、能导"做扎实。
+ * 音色分两层：
+ *   - **采样**（`samples.ts`）：钢琴/管乐/吉他/铜管/簧片/风琴，随包带真实录音，
+ *     离线可用。换来的是合成器给不了的瞬态细节 —— 击弦噪声、琴槌硬度、共鸣箱。
+ *   - **合成**：电钢、弦乐合奏、合成主音、铺底、打击乐。这些本来就该是电子的，
+ *     或者由多件乐器叠加而成，单件采样反而更假（一把独奏小提琴不像弦乐组）。
+ * 采样没加载成功（文件缺失/解码失败）时自动退回合成，播放链路不能因此中断。
+ *
+ * 其余取舍：
  *   - 混音走 Tone.Channel（音量 + 声像），与界面上的推子一一对应；
  *   - 导出用 Tone.Offline 离线渲染，比实时录音稳（不受 CPU 抖动影响）。
  *
@@ -12,6 +17,7 @@
 
 import * as Tone from "tone";
 import { audibleTracks, type InstrumentId, type Score, type Track } from "../core/model.ts";
+import { makeSampler, preload, preloadFor } from "./samples.ts";
 
 export interface TransportState {
   playing: boolean;
@@ -20,11 +26,32 @@ export interface TransportState {
   tempo: number;
 }
 
-type SynthLike = Tone.PolySynth<Tone.MonoSynth>;
+/**
+ * 一个能发声的乐器。
+ *
+ * Tone.Sampler 与 Tone.PolySynth 的 triggerAttackRelease 重载签名不同（后者还收
+ * Frequency[]），联合类型直接调用 TS 会拒绝。但实际用到的形式完全一致，所以在
+ * 这里窄化一次，换来所有调用处干净。
+ */
+interface Voice {
+  triggerAttackRelease(
+    note: number | string,
+    duration: number,
+    time?: number,
+    velocity?: number,
+  ): unknown;
+  dispose(): unknown;
+}
+
+function asVoice(v: Tone.Sampler | Tone.PolySynth<Tone.MonoSynth>): Voice {
+  return v as unknown as Voice;
+}
 
 interface TrackNode {
   trackId: string;
-  synth: SynthLike | null;
+  voice: Voice | null;
+  /** 这个节点是不是采样音色 —— 预热只对合成器的 PolySynth 有意义 */
+  sampled: boolean;
   kit: DrumKit | null;
   channel: Tone.Channel;
   instrument: InstrumentId;
@@ -275,19 +302,36 @@ function voiceOptions(p: VoicePreset): DeepPartial<Tone.MonoSynthOptions> {
   };
 }
 
+/**
+ * 音色选择：有采样就用采样。
+ *
+ * 采样是"更好"，不是"必须" —— makeSampler 在 buffer 没就绪（或该音色本来就
+ * 只有合成）时返回 null，这里退回合成。整条链路上不允许因为采样缺失而没声音。
+ */
+function makeVoice(id: InstrumentId, output: Tone.InputNode): { voice: Voice; sampled: boolean } {
+  const sampled = makeSampler(id, output);
+  if (sampled) return { voice: asVoice(sampled), sampled: true };
+  const preset = PRESETS[id] ?? PRESETS.piano;
+  return {
+    voice: asVoice(new Tone.PolySynth(Tone.MonoSynth, voiceOptions(preset)).connect(output)),
+    sampled: false,
+  };
+}
+
 function makeNode(track: Track, bus: Tone.InputNode): TrackNode {
   const channel = new Tone.Channel({ volume: gainToDb(track.volume), pan: track.pan, mute: track.mute }).connect(bus);
   if (track.instrument === "drums") {
-    return { trackId: track.id, synth: null, kit: new DrumKit(channel), channel, instrument: track.instrument };
+    return {
+      trackId: track.id,
+      voice: null,
+      sampled: false,
+      kit: new DrumKit(channel),
+      channel,
+      instrument: track.instrument,
+    };
   }
-  const preset = PRESETS[track.instrument] ?? PRESETS.piano;
-  const synth = new Tone.PolySynth(Tone.MonoSynth, voiceOptions(preset)).connect(channel);
-  return { trackId: track.id, synth, kit: null, channel, instrument: track.instrument };
-}
-
-/** 教具琴/独奏用的钢琴音色，和 PRESETS.piano 同一个配方 */
-function makePianoSynth(): Tone.PolySynth<Tone.MonoSynth> {
-  return new Tone.PolySynth(Tone.MonoSynth, voiceOptions(PRESETS.piano));
+  const { voice, sampled } = makeVoice(track.instrument, channel);
+  return { trackId: track.id, voice, sampled, kit: null, channel, instrument: track.instrument };
 }
 
 function gainToDb(gain: number): number {
@@ -327,6 +371,8 @@ export class PlaybackEngine {
   /** 全局总线：所有轨、教具琴、节拍器都汇到这里 */
   private bus: MixBus | null = null;
   private score: Score | null = null;
+  /** load 的世代号：切歌时用它丢弃"迟到的上一次加载" */
+  private loadToken = 0;
   private scheduled: number[] = [];
   private metronomeId: number | null = null;
   private clickSynth: Tone.MembraneSynth | null = null;
@@ -339,7 +385,9 @@ export class PlaybackEngine {
    * 为什么不用 load() 里那套按轨建的节点：课程练习时学生自己决定什么时候弹，
    * 不经过 Transport 的时钟，而且换课时不该重建音色（会有明显延迟）。
    */
-  private tutor: Tone.PolySynth<Tone.MonoSynth> | null = null;
+  private tutor: Voice | null = null;
+  /** 教具琴的响度微调（采样/合成两条路径都要，所以单独挂一个 Volume） */
+  private tutorTrim: Tone.Volume | null = null;
   /** 走带状态回调（播放头位置等），由 UI 订阅 */
   onTick: ((state: TransportState) => void) | null = null;
 
@@ -372,16 +420,30 @@ export class PlaybackEngine {
     });
   }
 
-  /** 载入乐谱：重建音色节点与事件表。重复调用是安全的。 */
-  load(score: Score): void {
+  /**
+   * 载入乐谱：重建音色节点与事件表。重复调用是安全的。
+   *
+   * 必须是异步的：采样得先解码完再建节点，否则 Sampler 拿到的是空 buffer，
+   * 表现就是"谱面在走、一点声音没有"——和之前 CSP 拦 Worker 的症状一模一样，
+   * 极难区分。宁可在加载上多等一两百毫秒。
+   *
+   * 用 loadToken 处理并发：切歌时上一次 load 可能还卡在采样加载里，等它回来
+   * 不能再去动已经属于新乐谱的节点。
+   */
+  async load(score: Score): Promise<void> {
+    const token = ++this.loadToken;
     this.stop();
     this.score = score;
     for (const n of this.nodes.values()) {
-      n.synth?.dispose();
+      n.voice?.dispose();
       n.kit?.dispose();
       n.channel.dispose();
     }
     this.nodes.clear();
+
+    await preloadFor(score.tracks.map((t) => t.instrument));
+    if (token !== this.loadToken) return;
+
     const bus = this.ensureBus();
     for (const t of score.tracks) this.nodes.set(t.id, makeNode(t, bus.input));
     this.scheduleAll();
@@ -397,15 +459,18 @@ export class PlaybackEngine {
    * 里面要现建振荡器、两个包络和一个 biquad。一个八度的和弦同时响起时，这些构造
    * 全挤进同一帧，表现就是**第一个和弦比后面的慢半拍，偶尔还带一声咔哒**。
    * 这里用 -80dB 的极短音先把常用音区的 voice 建出来，代价是听不见。
+   *
+   * 采样音色跳过：Player 直接读现成的 buffer，没有 voice 构造这回事。真去预热
+   * 反而会让第一下播放多出几声听不见但占 CPU 的调度。
    */
   private warmup(): void {
     const now = Tone.now() + 0.05;
     const probes = ["A2", "A3", "A4", "A5"];
     for (const node of this.nodes.values()) {
-      if (!node.synth) continue;
+      if (!node.voice || node.sampled) continue;
       try {
         probes.forEach((note, i) => {
-          node.synth?.triggerAttackRelease(note, 0.02, now + i * 0.01, 0.0001);
+          node.voice?.triggerAttackRelease(note, 0.02, now + i * 0.01, 0.0001);
         });
       } catch {
         /* 预热失败不影响正常播放，忽略 */
@@ -456,7 +521,7 @@ export class PlaybackEngine {
         const id = transport.schedule((time) => {
           const dur = Math.max(0.05, ev.durBeats * spb);
           if (node.kit) node.kit.trigger(time, ev.pitch, dur, ev.vel);
-          else node.synth?.triggerAttackRelease(midiToFreq(ev.pitch), dur, time, velocityGain(ev.vel));
+          else node.voice?.triggerAttackRelease(midiToFreq(ev.pitch), dur, time, velocityGain(ev.vel));
         }, ev.beat * spb);
         this.scheduled.push(id);
       }
@@ -633,12 +698,20 @@ export class PlaybackEngine {
     if (pitch < 0) return;
     await this.ensureContextRunning();
     if (!this.tutor) {
+      // 采样得先到位：pluck 是"按下就要响"，不能等第二次才出声
+      await preload("piano");
       // 接总线而不是直出：教具琴和伴奏必须在同一个空间里，否则弹一句就听得出
       // "琴在外面、伴奏在里面"——这种割裂感比音色本身更影响练习体验。
-      this.tutor = makePianoSynth().connect(this.ensureBus().input);
-      this.tutor.volume.value = -4;
+      // +2dB 让教具琴比乐谱里的钢琴轨稍突出一点：学生在弹，伴奏在下面垫着。
+      this.tutorTrim = new Tone.Volume(2).connect(this.ensureBus().input);
+      this.tutor = makeVoice("piano", this.tutorTrim).voice;
     }
-    this.tutor.triggerAttackRelease(midiToFreq(pitch), Math.max(0.08, durSec), undefined, Math.max(0.05, Math.min(1, vel)));
+    this.tutor.triggerAttackRelease(
+      midiToFreq(pitch),
+      Math.max(0.08, durSec),
+      undefined,
+      Math.max(0.05, Math.min(1, vel)),
+    );
   }
 
   private startTicker(): void {
@@ -655,13 +728,15 @@ export class PlaybackEngine {
   dispose(): void {
     this.stop();
     for (const n of this.nodes.values()) {
-      n.synth?.dispose();
+      n.voice?.dispose();
       n.kit?.dispose();
       n.channel.dispose();
     }
     this.nodes.clear();
     this.tutor?.dispose();
     this.tutor = null;
+    this.tutorTrim?.dispose();
+    this.tutorTrim = null;
     this.clickSynth?.dispose();
     this.clickSynth = null;
     this.bus?.dispose();
@@ -710,6 +785,9 @@ export async function renderWav(score: Score): Promise<Uint8Array> {
   for (const t of score.tracks) for (const n of t.notes) endBeat = Math.max(endBeat, n.start + n.dur);
   const tail = 2.2; // 留出释音尾巴
   const duration = Math.max(2, endBeat * spb + tail);
+  // 采样必须在进 Tone.Offline 之前解码完：离线上下文里没有机会等网络，
+  // 拿不到 buffer 的 Sampler 会整轨静音，导出的 WAV 就少了几层。
+  await preloadFor(score.tracks.map((t) => t.instrument));
   const buffer = await Tone.Offline(() => {
     const transport = Tone.getTransport();
     // 离线渲染也要过同一条总线：不加的话导出的 WAV 是没压缩、没混响、可能
@@ -724,7 +802,7 @@ export async function renderWav(score: Score): Promise<Uint8Array> {
         transport.schedule((time) => {
           const dur = Math.max(0.05, ev.durBeats * spb);
           if (node.kit) node.kit.trigger(time, ev.pitch, dur, ev.vel);
-          else node.synth?.triggerAttackRelease(midiToFreq(ev.pitch), dur, time, velocityGain(ev.vel));
+          else node.voice?.triggerAttackRelease(midiToFreq(ev.pitch), dur, time, velocityGain(ev.vel));
         }, ev.beat * spb);
       }
     });

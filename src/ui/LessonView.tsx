@@ -247,7 +247,7 @@ export default function LessonView({ getEngine, invalidateEngine, onOpenInProjec
           ...score,
           tracks: score.tracks.map((t, i) => ({ ...t, mute: muteIndex === i, solo: false })),
         };
-        eng.load(prepared);
+        await eng.load(prepared);
         eng.setMetronome(metronome);
         const total = Math.max(beatsPerMeasure(score), scoreEnd(score));
         eng.setLoop(0, total);
