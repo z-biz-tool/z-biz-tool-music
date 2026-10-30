@@ -88,20 +88,41 @@ async fn open_file(app: AppHandle) -> Result<Option<OpenedFile>, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 深链队列：既要 manage 给命令用，又要传给冷启动 seed —— 两处必须同一份。
+    let zbiz_pending = cap_hub::receiver::SharedPending::default();
+
     tauri::Builder::default()
         // 单实例：第二次启动聚焦已有窗口（必须是第一个注册的插件）
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             use tauri::Manager;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
             }
+            cap_hub::receiver::handle_second_instance(app, &argv);
         }))
+        .manage(zbiz_pending.clone())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![save_file, open_file])
+        .invoke_handler(tauri::generate_handler![
+            save_file,
+            open_file,
+            zbiz_take_pending
+        ])
+        .setup(move |app| {
+            cap_hub::receiver::seed_cold_start(app.handle(), &zbiz_pending);
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("tauri 应用启动失败");
+}
+
+/// 取走队列里的深链（家族统一命令名）。
+#[tauri::command]
+fn zbiz_take_pending(
+    pending: tauri::State<'_, cap_hub::receiver::SharedPending>,
+) -> Vec<cap_hub::Handoff> {
+    cap_hub::receiver::take_pending_from(pending.inner())
 }
