@@ -49,6 +49,10 @@ import {
 import { toAbc } from "./core/abc.ts";
 import { beatsPerMeasure, measureCount, scoreEnd, serializeScore, type InstrumentId, type Score } from "./core/model.ts";
 import { useStore, type ViewMode } from "./state.ts";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { startDeepLinkReceiver, ZBIZ_TAKE_PENDING } from "z-biz-tool-shared/protocol";
+import { resolveMusicDeepLink, type HandoffItem } from "./_shared/deepLink";
 import { JianpuView, MixerView, PianoRoll, StaffView, TrackList } from "./ui/views.tsx";
 import { AiPanel, InspectorPanel, TheoryPanel } from "./ui/panels.tsx";
 import LessonView from "./ui/LessonView.tsx";
@@ -103,6 +107,8 @@ export default function App() {
 
   const engineRef = useRef<PlaybackEngine | null>(null);
   const sigRef = useRef<string>("");
+  /** 深链接落地时要能触发放音，而 playPause 定义在后面 —— 用 ref 兜住。 */
+  const playPauseRef = useRef<(() => Promise<void>) | null>(null);
   const [busyExport, setBusyExport] = useState<ExportKind | null>(null);
   // 窄窗口默认收起右面板：900px 宽时左右两栏会把谱面挤到不能看
   const [rightOpen, setRightOpen] = useState(() => (typeof window === "undefined" ? true : window.innerWidth > 1180));
@@ -211,10 +217,90 @@ export default function App() {
     }
   }, [ensureEngine, store]);
 
+  playPauseRef.current = playPause;
+
   const stop = useCallback(async () => {
     const eng = await ensureEngine();
     eng.stop();
   }, [ensureEngine]);
+
+  /*
+   * 家族深链（zbiz://music/open?view=jianpu&track=<id>）：box 等产品递过来的跳转请求。
+   *
+   * 机制（冷启动补取 + zbiz-open 监听 + 不静默吞掉）在共享层 startDeepLinkReceiver，
+   * 本仓只提供语义：resolveMusicDeepLink 决定「切哪个视图、定位哪条轨道、要不要播」。
+   *
+   * 时序：music 的 store 是同步就绪的（乐谱在 localStorage，视图切过去即刻生效），
+   * 所以不需要 db 那套「等列表就绪再落地」的 pending 机制。
+   * 但轨道定位要等 store 里的 score 有内容 —— 冷启动时工程可能还没从会话里恢复，
+   * 所以轨道定位走下面的 pendingTrack，score 一有轨道就落地。
+   */
+  const [pendingTrack, setPendingTrack] = useState<{ id: string | null; name: string | null } | null>(null);
+
+  // 乐谱就绪后落地待定位的轨道。
+  useEffect(() => {
+    if (!pendingTrack) return;
+    const tracks = score.tracks;
+    if (tracks.length === 0) return;
+
+    const target = pendingTrack.id
+      ? tracks.find((t) => t.id === pendingTrack.id)
+      : tracks.find((t) => t.name === pendingTrack.name);
+
+    setPendingTrack(null);
+    if (!target) {
+      const asked = pendingTrack.id ?? pendingTrack.name ?? "";
+      store.say(`找不到要定位的轨道：${asked}`, "err");
+      return;
+    }
+    // setTrack 会清空 selected —— 所以必须只调它，不要顺手 select。
+    useStore.getState().setTrack(target.id);
+    store.say(`已定位到轨道「${target.name}」`);
+  }, [score, pendingTrack, store]);
+
+  useEffect(() => {
+    const stopReceiver = startDeepLinkReceiver({
+      productId: "music",
+      invoke: () => invoke<HandoffItem[]>(ZBIZ_TAKE_PENDING),
+      listen: (event, handler) => listen(event, handler),
+      translate: (item) => {
+        const out = resolveMusicDeepLink(item);
+        if (!out.view && !out.trackId && !out.trackName) {
+          return { ok: false, problem: out.problem ?? "这条深链本应用接不住" };
+        }
+        return {
+          ok: true,
+          effect: {
+            view: out.view,
+            trackId: out.trackId,
+            trackName: out.trackName,
+            shouldPlay: out.shouldPlay,
+          },
+        };
+      },
+      onProblem: (msg) => {
+        console.warn("[music] 深链:", msg);
+        store.say(msg, "err");
+      },
+      onEffect: (effect) => {
+        const view = effect.view as ViewMode | null;
+        if (view) useStore.getState().setView(view);
+
+        const trackId = (effect.trackId as string | null) ?? null;
+        const trackName = (effect.trackName as string | null) ?? null;
+        if (trackId || trackName) setPendingTrack({ id: trackId, name: trackName });
+
+        if (effect.shouldPlay === true) {
+          // 课程视图有自己的走带（走的是练习卡，不是主工程），
+          // 在那里触发主工程的播放是错的 —— 课程视图下不自动播。
+          if (view !== "lesson") void playPauseRef.current?.();
+        }
+      },
+    });
+    return stopReceiver;
+    // playPause 会在每次渲染重建，用 ref 兜住，避免这个 effect 反复重挂。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store]);
 
   const seek = useCallback(
     async (b: number) => {
