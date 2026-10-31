@@ -202,6 +202,48 @@ export interface ChatMessage {
   content: string;
 }
 
+/**
+ * 该地址是否指向本机 / 局域网。
+ *
+ * 这类地址上的 OpenAI 兼容服务（llama.cpp、Ollama、LM Studio、vLLM，以及
+ * 家里那台 mini 上的网关）没有鉴权层，不该逼用户填 API Key。
+ *
+ * 2026-10-31 修：原来这里是 `/localhost|127\.0\.0\.1/.test(base)`，于是
+ * `http://192.168.31.249:8200/v1` 这种局域网地址被判成「要 key」，
+ * 用户只能往设置里塞一个假密钥。判据与 cap-llm::is_private_endpoint 同源。
+ */
+export function isPrivateEndpoint(baseUrl: string): boolean {
+  const rest = baseUrl.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+  const hostport = (rest.split(/[/?#]/)[0] ?? "").trim();
+  const afterUser = hostport.includes("@") ? hostport.slice(hostport.lastIndexOf("@") + 1) : hostport;
+  // IPv6 字面量带方括号：`[::1]:8200`，括号内就是完整地址，不能再按冒号切
+  let host = afterUser;
+  if (host.startsWith("[")) {
+    const end = host.indexOf("]");
+    host = end > 0 ? host.slice(1, end) : host.slice(1);
+  } else {
+    host = host.split(":")[0] ?? "";
+  }
+  host = host.toLowerCase();
+  if (!host) return false;
+  if (host === "localhost" || host === "host.docker.internal") return true;
+  if (/\.(local|lan|internal)$/.test(host)) return true;
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const a = Number(v4[1]);
+    const b = Number(v4[2]);
+    return (
+      a === 127 ||
+      a === 10 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254) // link-local
+    );
+  }
+  // IPv6 回环 / 唯一本地地址 fc00::/7
+  return host === "::1" || /^f[cd][0-9a-f]{2}:/.test(host);
+}
+
 /** 调用 OpenAI 兼容的 chat/completions；错误翻成人话 */
 export async function callChat(
   provider: AiProvider,
@@ -211,7 +253,7 @@ export async function callChat(
   const base = provider.baseUrl.replace(/\/+$/, "");
   if (!base) throw new MusicError("还没有填 AI 服务地址（设置 → AI 服务）");
   if (!provider.model) throw new MusicError("还没有填模型名（设置 → AI 服务）");
-  const needsKey = !/localhost|127\.0\.0\.1/.test(base);
+  const needsKey = !isPrivateEndpoint(base);
   if (needsKey && !provider.apiKey) throw new MusicError("还没有填 API Key（设置 → AI 服务）");
 
   let res: Response;
