@@ -1,0 +1,19 @@
+{
+  "id": "music",
+  "displayName": "MuseLab 音乐工坊",
+  "description": "一句话到一首曲：五线谱/简谱/钢琴卷帘/混音台四视图同源，多音色混音，AI 作曲与出谱",
+  "acceptsDeepLink": true,
+  "actions": [
+    "open",
+    "view",
+    "play",
+    "track"
+  ],
+  "keywords": [
+    "音乐",
+    "作曲",
+    "钢琴",
+    "简谱",
+    "混音"
+  ]
+}
