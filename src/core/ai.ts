@@ -76,6 +76,17 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     needsKey: false,
     hint: "完全离线，质量取决于本机模型",
   },
+  {
+    // 家族自建的本地推理网关（OpenAI 兼容）。默认地址是网关所在的**本机**；
+    // 网关跑在另一台机器（如 mini）时，把地址换成那台的 IP 即可。
+    // 模型名取网关 `/v1/models` 里的文本模型（当前是 35B-A3B 那条）。
+    id: "zbiz-local",
+    label: "zBiz 本地网关",
+    baseUrl: "http://127.0.0.1:8200/v1",
+    model: "zBiz-Text-35B",
+    needsKey: false,
+    hint: "自建网关，无需密钥；跑在别的机器上时改地址",
+  },
 ];
 
 export const DEFAULT_PROVIDER: AiProvider = {
