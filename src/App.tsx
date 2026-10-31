@@ -230,10 +230,10 @@ export default function App() {
    * 机制（冷启动补取 + zbiz-open 监听 + 不静默吞掉）在共享层 startDeepLinkReceiver，
    * 本仓只提供语义：resolveMusicDeepLink 决定「切哪个视图、定位哪条轨道、要不要播」。
    *
-   * 时序：music 的 store 是同步就绪的（乐谱在 localStorage，视图切过去即刻生效），
+   * 时序：music 的 store 是同步就绪的（乐谱在 state.ts 模块加载时同步读 localStorage），
    * 所以不需要 db 那套「等列表就绪再落地」的 pending 机制。
-   * 但轨道定位要等 store 里的 score 有内容 —— 冷启动时工程可能还没从会话里恢复，
-   * 所以轨道定位走下面的 pendingTrack，score 一有轨道就落地。
+   * 轨道定位仍走下面的 pendingTrack：定位结果要等 score 变化重新匹配，
+   * 且匹配不到时必须报错清掉（挂着不动 = 用户看到「点了没反应」）。
    */
   const [pendingTrack, setPendingTrack] = useState<{ id: string | null; name: string | null } | null>(null);
 
@@ -241,7 +241,15 @@ export default function App() {
   useEffect(() => {
     if (!pendingTrack) return;
     const tracks = score.tracks;
-    if (tracks.length === 0) return;
+    if (tracks.length === 0) {
+      // 会话是同步读 localStorage 的（state.ts 的 initial = loadSession()），
+      // 走到这里说明应用里确实一条轨道都没有 —— 再等下去也不会有，
+      // 挂着不处理就成了「点了没反应」，直接说清楚。
+      const asked = pendingTrack.id ?? pendingTrack.name ?? "";
+      store.say(`当前工程里没有轨道，无法定位：${asked}`, "err");
+      setPendingTrack(null);
+      return;
+    }
 
     const target = pendingTrack.id
       ? tracks.find((t) => t.id === pendingTrack.id)
