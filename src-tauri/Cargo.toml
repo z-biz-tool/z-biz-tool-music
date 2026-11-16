@@ -1,6 +1,6 @@
 [package]
 name = "z-biz-tool-music"
-version = "0.1.0"
+version = "0.1.1"
 description = "MuseLab 音乐工坊：一句话到一首曲——五线谱/简谱/钢琴卷帘同步编辑，多音色混音，AI 作曲"
 edition = "2021"
 license = "MIT"
